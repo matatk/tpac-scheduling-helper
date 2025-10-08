@@ -1,0 +1,5 @@
+node_modules/
+package-lock.json
+queryResult.json
+schedule-*.html
+tpac.html

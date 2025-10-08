@@ -1,0 +1,58 @@
+:root {
+	font-family: sans-serif;
+	line-height: 1.5;
+	font-size: 1.2rem;
+
+	--error: red;
+	--highlight: blue;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--error: deeppink;
+		--highlight: yellow;
+	}
+}
+
+body {
+	width: 60rem;
+	max-width: 98vw;
+	margin: auto;
+}
+
+.meeting {
+	border: 1px solid currentColor;
+	border-radius: 0.5em;
+	padding: 0 1em;
+	margin-block-end: 1em;
+}
+
+.meeting.invalid {
+	border: 4px dashed var(--error);
+}
+
+.meeting>h3 {
+	margin-block-end: 0;
+}
+
+.meeting>p {
+	margin-block-start: 0;
+	font-size: 0.8em;
+}
+
+dl {
+	display: grid;
+	grid-template-columns: max-content auto;
+}
+
+dt {
+	font-weight: bold;
+}
+
+dt::after {
+	content: ':'
+}
+
+:target.meeting {
+	border: 4px solid var(--highlight);
+}

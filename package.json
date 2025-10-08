@@ -1,0 +1,16 @@
+{
+  "name": "tpac-scheduling-helper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
+    "jsdom": "^27.0.0",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^24.7.0",
+    "@types/yargs": "^17.0.33"
+  }
+}
