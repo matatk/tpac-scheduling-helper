@@ -105,16 +105,22 @@ function getSchedule(path: string) {
 	return fs.readFileSync(path, 'utf-8')
 }
 
-function getIssues(repo: string, label: string): GhIssue[] {
-	const process = 'gh'
-	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url']
-	console.log('Querying GitHub...')
-	console.log(process, args.join(' '))
-	const child = spawnSync(process, args)
-	if (child.error) {
-		throw (child.stderr)
+function getIssues(repos: string[], label: string): GhIssue[] {
+	const out: GhIssue[] = []
+
+	console.log('Querying GitHub repos...')
+	for (const repo of repos) {
+		const process = 'gh'
+		const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url']
+		console.log(process, args.join(' '))
+		const child = spawnSync(process, args)
+		if (child.error) {
+			throw (child.stderr)
+		}
+		out.push(...JSON.parse(child.stdout.toString()))
 	}
-	return JSON.parse(child.stdout.toString())
+
+	return out
 }
 
 function extractBodyInfo(body: String): Partial<GhBodyInfo> {
@@ -362,7 +368,8 @@ function getConfig() {
 		.option('repo', {
 			alias: 'r',
 			type: 'string',
-			description: 'GitHub URL of repo containing TPAC meeting-planning issues',
+			array: true,
+			description: 'GitHub URL(s) of repo(s) containing TPAC meeting-planning issues',
 			required: true
 		})
 		.option('label', {
