@@ -38,9 +38,9 @@ To run it on _this_ repo (which contains some example TPAC planning issues), usi
 
 ```sh
 ./tsh.ts \
-    --repo 'https://github.com/matatk/tpac-scheduling-helper' \
-    --meetings schedule-meetings.html \
-    --output tpac.html
+	--repo 'matatk/tpac-scheduling-helper' \
+	--meetings schedule-meetings.html \
+	--output tpac.html
 ```
 
 ## Issue format
