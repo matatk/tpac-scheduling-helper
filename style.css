@@ -3,13 +3,19 @@
 	line-height: 1.5;
 	font-size: 1.2rem;
 
-	--error: red;
+	--exact: green;
+	--subset: orange;
+	--nope: red;
+	--invalid: red;
 	--highlight: blue;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--error: deeppink;
+		--exact: green;
+		--subset: orange;
+		--nope: deeppink;
+		--invalid: deeppink;
 		--highlight: yellow;
 	}
 }
@@ -21,23 +27,42 @@ body {
 }
 
 .meeting {
-	border: 1px solid currentColor;
 	border-radius: 0.5em;
 	padding: 0 1em;
 	margin-block-end: 1em;
 }
 
-.meeting.invalid {
-	border: 4px dashed var(--error);
+.meeting.exact {
+	border: 4px solid var(--exact);
 }
 
-.meeting>h3 {
+.meeting.subset {
+	border: 4px solid var(--subset);
+}
+
+.meeting.nope {
+	border: 4px solid var(--nope);
+}
+
+.meeting.invalid {
+	border: 4px dashed var(--invalid);
+}
+
+.meeting>h4 {
 	margin-block-end: 0;
 }
 
 .meeting>p {
 	margin-block-start: 0;
 	font-size: 0.8em;
+}
+
+.meeting>details:not([open]) {
+	margin-block-end: 1rem;
+}
+
+summary {
+	cursor: pointer;
 }
 
 dl {

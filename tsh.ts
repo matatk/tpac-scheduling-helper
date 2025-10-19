@@ -81,6 +81,30 @@ type Config = ConfigEntry[]
 
 let meetingCounter = 1
 
+function objPushValue(obj: Object, key: string, thing: Object) {
+	if (!Array.isArray(obj[key])) {
+		obj[key] = [thing]
+	} else {
+		obj[key].push(thing)
+	}
+}
+
+function objAddValue(obj: Object, key: string, thing: Object) {
+	if (!(obj[key] instanceof Set)) {
+		obj[key] = new Set([thing])
+	} else {
+		obj[key].add(thing)
+	}
+}
+
+function mapPushValue(map: Map<Day, Meeting[]>, key: Day, thing: Meeting) {
+	if (!Array.isArray(map.get(key))) {
+		map.set(key, [thing])
+	} else {
+		map.get(key)?.push(thing)
+	}
+}
+
 function dtf(pdt: Temporal.PlainDateTime): string {
 	return pdt.toLocaleString(undefined, {
 		hour: '2-digit',
@@ -92,7 +116,7 @@ function isDay(candidate: any): candidate is Day {
 	return Days.indexOf(candidate) > -1
 }
 
-function prettyDay(day: Day): string {
+function pretty(day: Day): string {
 	return (day as unknown as string).charAt(0).toUpperCase() + day.slice(1)
 }
 
@@ -213,10 +237,10 @@ function display(meeting: Meeting) {
 	console.log(`Cal title: ${meeting.calendarTitle}`)
 
 	if (match === Match.NOPE) {
-		console.log('  Cal day:', prettyDay(meeting.calendarDay))
-		console.log('  Our day:', prettyDay(meeting.ourDay))
+		console.log('  Cal day:', pretty(meeting.calendarDay))
+		console.log('  Our day:', pretty(meeting.ourDay))
 	} else {
-		console.log('      Day:', prettyDay(meeting.ourDay))
+		console.log('      Day:', pretty(meeting.ourDay))
 	}
 
 	if (match !== Match.EXACT) {
@@ -236,8 +260,8 @@ function displayPartial(meeting: Partial<Meeting>) {
 	console.log('      tag:', meeting.tag)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
 
-	console.log('  Cal day:', meeting.calendarDay ? prettyDay(meeting.calendarDay) : null)
-	console.log('  Our day:', meeting.ourDay ? prettyDay(meeting.ourDay) : null)
+	console.log('  Cal day:', meeting.calendarDay ? pretty(meeting.calendarDay) : null)
+	console.log('  Our day:', meeting.ourDay ? pretty(meeting.ourDay) : null)
 
 	console.log(' Cal time:', meeting.calendarStart ? dtf(meeting.calendarStart) : '??', '-', meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??')
 	console.log(' Our time:', meeting.ourStart ? dtf(meeting.ourStart) : '??', '-', meeting.ourEnd ? dtf(meeting.ourEnd) : '??')
@@ -265,19 +289,27 @@ function htmlNotes(meeting: Partial<Meeting>): string {
 	return ''
 }
 
+function listItemFor(meeting: Meeting, includeDay: boolean): string {
+	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
+	return `<li><p><a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>, <i>${meeting.ourNames.join(', ')}</i></p></li>`
+}
+
 function htmlForMeeting(meeting: Meeting): string {
 	const match = timeMatch(meeting)
 
-	let out = `<div id="${meeting.tag}" class="meeting"><h3>${meeting.calendarTitle}</h3><p><i>${meeting.ourTitle}</i></p><dl>`
+	let out = ''
+	let condition = 'exact'
 
 	if (match === Match.NOPE) {
-		out += `<dt>Calendar day</dt><dd>${prettyDay(meeting.calendarDay)}</dd>`
-		out += `<dt>Our day</dt><dd>${prettyDay(meeting.ourDay)}</dd>`
+		condition = 'nope'
+		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
+		out += `<dt>Our day</dt><dd>${pretty(meeting.ourDay)}</dd>`
 	} else {
-		out += `<dt>Day</dt><dd>${prettyDay(meeting.calendarDay)}</dd>`
+		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
 	if (match !== Match.EXACT) {
+		condition = 'subset'
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 		out += `<dt>Our time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
 	} else {
@@ -285,21 +317,22 @@ function htmlForMeeting(meeting: Meeting): string {
 	}
 
 	out += htmlPeopleAndUrls(meeting)
-	out += `<dt>Match</dt><dd>${timeMatch(meeting)}</dd>`
+	out += `<dt>Time match</dt><dd>${timeMatch(meeting)}</dd>`
 	out += '</dl>'
 
 	out += htmlNotes(meeting)
 
 	out += '</div>'
 
-	return out
+	return `<div id="${meeting.tag}" class="meeting ${condition}"><h4>${meeting.calendarTitle}</h4><p><i>${meeting.ourTitle}</i></p><dl>` + out
+
 }
 
 function htmlForPartialMeeting(meeting: Partial<Meeting>): string {
 	let out = `<div id="${meeting.tag}" class="meeting invalid"><h3>${meeting.calendarTitle}</h3><p><i>${meeting.ourTitle}</i></p><dl>`
 
-	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? prettyDay(meeting.calendarDay) : '???'}</dd>`
-	out += `<dt>Our day</dt><dd>${meeting.ourDay ? prettyDay(meeting.ourDay) : '???'}</dd>`
+	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
+	out += `<dt>Our day</dt><dd>${meeting.ourDay ? pretty(meeting.ourDay) : '???'}</dd>`
 
 	out += `<dt>Calendar time</dt><dd>${meeting.calendarStart ? dtf(meeting.calendarStart) : '??'}&ndash;${meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??'}</dd>`
 	out += `<dt>Our time</dt><dd>${meeting.ourStart ? dtf(meeting.ourStart) : '??'}&ndash;${meeting.ourEnd ? dtf(meeting.ourEnd) : '??'}</dd>`
@@ -348,10 +381,10 @@ function outputClashingMeetings(peopleClashingMettings: Record<string, Set<Meeti
 		console.log(`// ${kind} clashing meetings for ${name}`)
 		console.log()
 		if (peopleClashingMettings[name].size) {
-			html += `<h2>${kind} clashing meetings for ${name}</h2><ul>`
+			html += `<h3>${kind} clashing meetings for ${name}</h3><ul>`
 			for (const meeting of peopleClashingMettings[name]) {
 				display(meeting)
-				html += `<li><p><a href="#${meeting.tag}">${meeting.calendarTitle}</a>, ${prettyDay(meeting.calendarDay)}, ${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</p></li>`
+				html += listItemFor(meeting, true)
 				console.log()
 			}
 			html += '</ul>'
@@ -422,6 +455,59 @@ function isConfig(c: any): c is Config {
 	return false
 }
 
+function outputInvalidMeetings(ims: Partial<Meeting>[]): string {
+	if (ims.length === 0) return ''
+	let html = ''
+
+	console.log('// Invalid meeting issue entries')
+	console.log()
+	html += '<h2>Invalid meeting issue entries</h2>'
+	ims.forEach(p => {
+		displayPartial(p)
+		html += htmlForPartialMeeting(p)
+		console.log()
+	})
+
+	console.log()
+	console.log()
+	return html
+}
+
+function htmlDayMeetingLinks(dms: Map<Day, Meeting[]>): string {
+	let html = '<ul>'
+	dms.forEach((meetings, day) => {
+		html += `<li>${pretty(day)}<ul>`
+		for (const meeting of meetings) {
+			html += listItemFor(meeting, false)
+		}
+		html += `</ul></li>`
+	})
+	html += '</ul>'
+	return html
+}
+
+function outputPlannedMeetings(pms: Meeting[]): string {
+	console.log('// Planned meetings')
+	console.log()
+	let html = '' // NOTE: This heading is done elsewhere, due to the meeting summary
+	let currentDay: Day | null = null
+
+	for (const meeting of pms) {
+		if (meeting.calendarDay !== currentDay) {
+			currentDay = meeting.calendarDay
+			console.log(pretty(meeting.calendarDay))
+			html += `<h3>${pretty(meeting.calendarDay)}</h3>`
+		}
+		display(meeting)
+		console.log()
+		html += htmlForMeeting(meeting)
+	}
+
+	console.log()
+	console.log()
+	return html
+}
+
 function main() {
 	const args = getArgs()
 
@@ -446,7 +532,16 @@ function main() {
 				issues.push(...getIssues(repo, label))
 			}
 		} else {
-			throw Error('Invalid config file')
+			console.error(`Invalid config file. It should be JSON of the form:
+
+[
+	{
+		"repo": "<org/name or full URL>",
+		"label": "<label used for TPAC planning issues in this repo>"
+	},
+	. . .
+]`)
+			return
 		}
 	}
 
@@ -454,16 +549,6 @@ function main() {
 		console.error('No issues found')
 		return
 	}
-
-	let html = `<!DOCTYPE html>
-		<head>
-			<meta charset="utf-8">
-			<title>TPAC Schedule Helper</title>
-			<meta name="color-scheme" content="dark light" />
-			<link rel="stylesheet" href="${args.style}">
-		</head>
-		<body>
-			<h1>TPAC Schedule Helper</h1>`
 
 	const meetings: Meeting[] = []
 	const invalidMeetings: Partial<Meeting>[] = []
@@ -477,44 +562,17 @@ function main() {
 		}
 	}
 
-	if (invalidMeetings.length) {
-		console.log('// Invalid meeting issue entries')
-		console.log()
-		html += '<h2>Invalid meeting issue entries</h2>'
-
-		invalidMeetings.forEach(p => {
-			displayPartial(p)
-			html += htmlForPartialMeeting(p)
-			console.log()
-		})
-
-		console.log()
-		console.log()
-	}
-
 	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
 
+	const dayMeetings = new Map<Day, Meeting[]>
 	const peopleMeetings: Record<string, Meeting[]> = {}
 
-	console.log('// Planned meetings')
-	console.log()
-	html += '<h2>Planned meetings</h2>'
 	for (const meeting of meetings) {
-		display(meeting)
-		console.log()
-		html += htmlForMeeting(meeting)
-
-		// TODO: List peopleMeetings on the console?
 		for (const name of meeting.ourNames) {
-			if (!Array.isArray(peopleMeetings[name])) {
-				peopleMeetings[name] = [meeting]
-			} else {
-				peopleMeetings[name].push(meeting)
-			}
+			objPushValue(peopleMeetings, name, meeting)
+			mapPushValue(dayMeetings, meeting.calendarDay, meeting)
 		}
 	}
-	console.log()
-	console.log()
 
 	const peopleDefinitelyClashingMeetings: Record<string, Set<Meeting>> = {}
 	const peopleNearlyClashingMeetings: Record<string, Set<Meeting>> = {}
@@ -525,30 +583,48 @@ function main() {
 				if (meeting === other) continue
 				switch (clashes(meeting, other)) {
 					case Clash.DEFO:
-						if (!Array.isArray(peopleDefinitelyClashingMeetings[name])) {
-							peopleDefinitelyClashingMeetings[name] = new Set([meeting, other])
-						} else {
-							peopleDefinitelyClashingMeetings[name].add(meeting)
-							peopleDefinitelyClashingMeetings[name].add(other)
-						}
+						objAddValue(peopleDefinitelyClashingMeetings, name, meeting)
 						break
 					case Clash.NEAR:
-						if (!Array.isArray(peopleNearlyClashingMeetings[name])) {
-							peopleNearlyClashingMeetings[name] = new Set([meeting, other])
-						} else {
-							peopleNearlyClashingMeetings[name].add(meeting)
-							peopleNearlyClashingMeetings[name].add(other)
-						}
+						objAddValue(peopleNearlyClashingMeetings, name, meeting)
 						break
 				}
 			}
 		}
 	}
 
-	html += outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
-	html += outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
+	const htmlStart = `<!DOCTYPE html>
+		<head>
+			<meta charset="utf-8">
+			<title>TPAC Schedule Helper</title>
+			<meta name="color-scheme" content="dark light" />
+			<link rel="stylesheet" href="${args.style}">
+		</head>
+		<body>
+			<h1>TPAC Schedule Helper</h1>
+			<ul>
+				<li><p><a href="#planned">Planned meetings</a></p></li>
+				<li><p><a href="#clashing">Definitely clashing meetings</a></p></li>
+				<li><p><a href="#near">Nearly clashing meetings</a></p></li>
+			</ul>`
+	const invalidOutput = outputInvalidMeetings(invalidMeetings)
+	const plannedLinks = htmlDayMeetingLinks(dayMeetings)
+	const planned = outputPlannedMeetings(meetings)
+	const clashing = outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
+	const nearlyClashing = outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
+	const htmlEnd = '</body></html>'
 
-	html += '</body></html>'
+	const html = htmlStart +
+		invalidOutput +
+		'<h2 id="planned">Planned meetings</h2>' +
+		'<h3>Summary</h3>' +
+		plannedLinks +
+		planned +
+		'<h2 id="clashing">Definitely clashing meetings</h2>' +
+		clashing +
+		'<h2 id="near">Nearly clashing meetings</h2>' +
+		nearlyClashing +
+		htmlEnd
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output)
