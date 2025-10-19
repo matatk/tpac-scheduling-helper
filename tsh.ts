@@ -72,6 +72,13 @@ type Meeting = {
 	notes?: string
 }
 
+type ConfigEntry = {
+	repo: string
+	label: string
+}
+
+type Config = ConfigEntry[]
+
 let meetingCounter = 1
 
 function dtf(pdt: Temporal.PlainDateTime): string {
@@ -105,22 +112,15 @@ function getSchedule(path: string) {
 	return fs.readFileSync(path, 'utf-8')
 }
 
-function getIssues(repos: string[], label: string): GhIssue[] {
-	const out: GhIssue[] = []
-
-	console.log('Querying GitHub repos...')
-	for (const repo of repos) {
-		const process = 'gh'
-		const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url']
-		console.log(process, args.join(' '))
-		const child = spawnSync(process, args)
-		if (child.error) {
-			throw (child.stderr)
-		}
-		out.push(...JSON.parse(child.stdout.toString()))
+function getIssues(repo: string, label: string): GhIssue[] {
+	const process = 'gh'
+	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url']
+	console.log(process, args.join(' '))
+	const child = spawnSync(process, args)
+	if (child.error) {
+		throw (child.stderr)
 	}
-
-	return out
+	return JSON.parse(child.stdout.toString())
 }
 
 function extractBodyInfo(body: String): Partial<GhBodyInfo> {
@@ -362,15 +362,13 @@ function outputClashingMeetings(peopleClashingMettings: Record<string, Set<Meeti
 	return html
 }
 
-function getConfig() {
+function getArgs() {
 	return yargs(hideBin(process.argv))
 		.usage('TPAC scheduling helper\n\nUsage: $0 [options]')
-		.option('repo', {
-			alias: 'r',
+		.option('config', {
+			alias: 'c',
 			type: 'string',
-			array: true,
-			description: 'GitHub URL(s) of repo(s) containing TPAC meeting-planning issues',
-			required: true
+			description: 'Path to JSON config file, of the form: [ { repo, label }, ... ]'
 		})
 		.option('label', {
 			alias: 'l',
@@ -384,16 +382,22 @@ function getConfig() {
 			description: "Path to local meetings schedule file - it will be downloaded if it doesn't exist",
 			required: true
 		})
-		.option('json', {
-			alias: 'j',
-			type: 'string',
-			description: 'Path to local JSON file that contains a GitHub API query response (for debugging)',
-		})
 		.option('output', {
 			alias: 'o',
 			type: 'string',
 			description: 'Path to HTML file to create with info on all the meetings',
 			required: true
+		})
+		.option('query-result', {
+			alias: 'q',
+			type: 'string',
+			description: 'Path to local JSON file that contains a GitHub API query response (for debugging)',
+		})
+		.option('repo', {
+			alias: 'r',
+			type: 'string',
+			array: true,
+			description: 'GitHub URL(s) of repo(s) containing TPAC meeting-planning issues (the same label will be applied to all repo searches - if you want to use different labels for different repos, you will need to make a config file)',
 		})
 		.option('style', {
 			alias: 's',
@@ -401,18 +405,50 @@ function getConfig() {
 			description: 'Name of CSS file you provide to style the HTML output',
 			default: 'style.css'
 		})
+		.check(argv => {
+			if (!!argv.repo && !!argv.queryResult && !!argv.config) {
+				throw("One of 'repo', 'query-result', or 'config' must be provided.")
+			}
+			return true
+		})
 		.parseSync()
 }
 
+function isConfig(c: any): c is Config {
+	if (!Array.isArray(c)) return false
+	if (c.every(m => typeof m === 'object' && typeof m.repo === 'string' && typeof m.label === 'string')) {
+		return true
+	}
+	return false
+}
+
 function main() {
-	const args = getConfig()
+	const args = getArgs()
 
 	const dom = new JSDOM(getSchedule(args.meetings))
 	const doc = dom.window.document
 
-	const issues = args.json
-		? JSON.parse(fs.readFileSync(args.json, 'utf-8')) as unknown as GhIssue[]
-		: getIssues(args.repo, args.label)
+	const issues: GhIssue[] = []
+
+	if (!!args.repo) {
+		console.log('Querying repo(s)...')
+		for (const repo of args.repo) {
+			issues.push(...getIssues(repo, args.label))
+		}
+	} else if (!!args.queryResult) {
+		console.log('Using existing query result')
+		issues.push(...JSON.parse(fs.readFileSync(args.queryResult, 'utf-8')) as unknown as GhIssue[])
+	} else if (!!args.config) {
+		console.log('Querying repo(s) based on config file...')
+		const config = JSON.parse(fs.readFileSync(args.config, 'utf-8'))
+		if (isConfig(config)) {
+			for (const { repo, label } of config) {
+				issues.push(...getIssues(repo, label))
+			}
+		} else {
+			throw Error('Invalid config file')
+		}
+	}
 
 	if (issues.length === 0) {
 		console.error('No issues found')

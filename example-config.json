@@ -1,0 +1,10 @@
+[
+  {
+    "repo": "https://github.com/matatk/tpac-scheduling-helper",
+    "label": "tpac"
+  },
+  {
+    "repo": "https://github.com/w3c/apa",
+    "label": "tpac-2025"
+  }
+]
