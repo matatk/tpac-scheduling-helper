@@ -81,6 +81,33 @@ type Config = ConfigEntry[]
 
 let meetingCounter = 1
 
+class ClashingMeetingSet {
+	#idPairs: Set<string>
+	#meetingPairs: [Meeting, Meeting][]
+
+	constructor() {
+		this.#idPairs = new Set()
+		this.#meetingPairs = []
+	}
+
+	add(a: Meeting, b: Meeting) {
+		const sorted: [Meeting, Meeting] = [a, b].sort((a, b) => a.tag - b.tag)
+		const ident = sorted.map(m => m.tag).join(':')
+		if (!this.#idPairs.has(ident)) {
+			this.#idPairs.add(ident)
+			this.#meetingPairs.push(sorted)
+		}
+	}
+
+	get size() {
+		return this.#meetingPairs.length
+	}
+
+	[Symbol.iterator]() {
+		return this.#meetingPairs[Symbol.iterator]()
+	}
+}
+
 function objPushValue(obj: Object, key: string, thing: Object) {
 	if (!Array.isArray(obj[key])) {
 		obj[key] = [thing]
@@ -89,12 +116,11 @@ function objPushValue(obj: Object, key: string, thing: Object) {
 	}
 }
 
-function objAddValue(obj: Object, key: string, thing: Object) {
-	if (!(obj[key] instanceof Set)) {
-		obj[key] = new Set([thing])
-	} else {
-		obj[key].add(thing)
+function objAddClash(obj: Object, key: string, a: Meeting, b: Meeting) {
+	if (!(obj[key] instanceof ClashingMeetingSet)) {
+		obj[key] = new ClashingMeetingSet()
 	}
+	obj[key].add(a, b)
 }
 
 function mapPushValue(map: Map<Day, Meeting[]>, key: Day, thing: Meeting) {
@@ -138,7 +164,7 @@ function getSchedule(path: string) {
 
 function getIssues(repo: string, label: string): GhIssue[] {
 	const process = 'gh'
-	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url']
+	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999']
 	console.log(process, args.join(' '))
 	const child = spawnSync(process, args)
 	if (child.error) {
@@ -156,7 +182,7 @@ function extractBodyInfo(body: String): Partial<GhBodyInfo> {
 	const day = isDay(rawDay) ? rawDay : undefined
 	const startOfDay = day ? startOfDayFromString(day) ?? undefined : undefined
 	const time = bodyLines.shift()
-	const startAndEnd = startOfDay ? time?.split(' - ').map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
+	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
 	const start = startAndEnd?.[0]
 	const end = startAndEnd?.[1]
 	bodyLines.shift()  // TODO make an error condition for this if not present?
@@ -290,8 +316,12 @@ function htmlNotes(meeting: Partial<Meeting>): string {
 }
 
 function listItemFor(meeting: Meeting, includeDay: boolean): string {
+	return `<li><p>${oneLinerFor(meeting,includeDay)}</p></li>`
+}
+
+function oneLinerFor(meeting: Meeting, includeDay: boolean): string {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
-	return `<li><p><a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>, <i>${meeting.ourNames.join(', ')}</i></p></li>`
+	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>, <i>${meeting.ourNames.join(', ')}</i>`
 }
 
 function htmlForMeeting(meeting: Meeting): string {
@@ -375,16 +405,18 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	return { title, day, start, end }
 }
 
-function outputClashingMeetings(peopleClashingMettings: Record<string, Set<Meeting>>, kind: string): string {
+function outputClashingMeetings(peopleClashingMeetings: Record<string, ClashingMeetingSet>, kind: string): string {
 	let html = ''
-	for (const name in peopleClashingMettings) {
+	for (const name in peopleClashingMeetings) {
 		console.log(`// ${kind} clashing meetings for ${name}`)
 		console.log()
-		if (peopleClashingMettings[name].size) {
+		if (peopleClashingMeetings[name].size) {
 			html += `<h3>${kind} clashing meetings for ${name}</h3><ul>`
-			for (const meeting of peopleClashingMettings[name]) {
-				display(meeting)
-				html += listItemFor(meeting, true)
+			for (const [m, o] of peopleClashingMeetings[name]) {
+				display(m)
+				console.log('...and...')
+				display(o)
+				html += `<li><p>${oneLinerFor(m, true)}</p><p>and</p><p>${oneLinerFor(o, true)}</p></li>`
 				console.log()
 			}
 			html += '</ul>'
@@ -574,8 +606,10 @@ function main() {
 		}
 	}
 
-	const peopleDefinitelyClashingMeetings: Record<string, Set<Meeting>> = {}
-	const peopleNearlyClashingMeetings: Record<string, Set<Meeting>> = {}
+	console.log(peopleMeetings)
+
+	const peopleDefinitelyClashingMeetings: Record<string, ClashingMeetingSet> = {}
+	const peopleNearlyClashingMeetings: Record<string, ClashingMeetingSet> = {}
 
 	for (const name in peopleMeetings) {
 		for (const meeting of peopleMeetings[name]) {
@@ -583,10 +617,10 @@ function main() {
 				if (meeting === other) continue
 				switch (clashes(meeting, other)) {
 					case Clash.DEFO:
-						objAddValue(peopleDefinitelyClashingMeetings, name, meeting)
+						objAddClash(peopleDefinitelyClashingMeetings, name, meeting, other)
 						break
 					case Clash.NEAR:
-						objAddValue(peopleNearlyClashingMeetings, name, meeting)
+						objAddClash(peopleNearlyClashingMeetings, name, meeting, other)
 						break
 				}
 			}

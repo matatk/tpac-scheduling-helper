@@ -59,9 +59,11 @@ The body of the first comment on the issue needs to match the following format:
 [optional further lines contain your notes on the meeting]
 ```
 
-The time should be in 24-hour format, with a colon (i.e. `HH:MM`). The bit between the times does need to be " - " exactly.
-
 The reason you need to specify the day and time in the issue is so that there's a better chance the script can detect when a session has moved.
+
+The time should be in 24-hour format, with a colon (i.e. `HH:MM`).
+
+The bit between the times can be either a plain hyphen or an en-dash, and the spaces are optional.
 
 ## Future plans
 

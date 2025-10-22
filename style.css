@@ -48,7 +48,7 @@ body {
 	border: 4px dashed var(--invalid);
 }
 
-.meeting>h4 {
+.meeting>:first-child {
 	margin-block-end: 0;
 }
 
