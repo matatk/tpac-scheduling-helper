@@ -316,12 +316,18 @@ function htmlNotes(meeting: Partial<Meeting>): string {
 }
 
 function listItemFor(meeting: Meeting, includeDay: boolean): string {
-	return `<li><p>${oneLinerFor(meeting,includeDay)}</p></li>`
+	return `<li><p>${oneLinerFor(meeting, includeDay)}</p></li>`
 }
 
-function oneLinerFor(meeting: Meeting, includeDay: boolean): string {
+function oneLinerFor(meeting: Meeting, includeDay: boolean, skipName?: string): string {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
-	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>, <i>${meeting.ourNames.join(', ')}</i>`
+	const names = skipName
+		? meeting.ourNames.filter(name => name !== skipName)
+		: meeting.ourNames
+	const nameHtml = names.length
+		? `, <i>${names.join(', ')}</i>`
+		: ''
+	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>${nameHtml}`
 }
 
 function htmlForMeeting(meeting: Meeting): string {
@@ -416,7 +422,7 @@ function outputClashingMeetings(peopleClashingMeetings: Record<string, ClashingM
 				display(m)
 				console.log('...and...')
 				display(o)
-				html += `<li><p>${oneLinerFor(m, true)}</p><p>and</p><p>${oneLinerFor(o, true)}</p></li>`
+				html += `<li><p>${oneLinerFor(m, true, name)}<br>and<br>${oneLinerFor(o, true, name)}</p></li>`
 				console.log()
 			}
 			html += '</ul>'
@@ -554,7 +560,7 @@ function main() {
 			issues.push(...getIssues(repo, args.label))
 		}
 	} else if (!!args.queryResult) {
-		console.log('Using existing query result')
+		console.log('Using existing query result.')
 		issues.push(...JSON.parse(fs.readFileSync(args.queryResult, 'utf-8')) as unknown as GhIssue[])
 	} else if (!!args.config) {
 		console.log('Querying repo(s) based on config file...')
@@ -606,10 +612,11 @@ function main() {
 		}
 	}
 
-	console.log(peopleMeetings)
-
 	const peopleDefinitelyClashingMeetings: Record<string, ClashingMeetingSet> = {}
 	const peopleNearlyClashingMeetings: Record<string, ClashingMeetingSet> = {}
+
+	let clashingDefinitely = false
+	let clashingNearly = false
 
 	for (const name in peopleMeetings) {
 		for (const meeting of peopleMeetings[name]) {
@@ -618,9 +625,11 @@ function main() {
 				switch (clashes(meeting, other)) {
 					case Clash.DEFO:
 						objAddClash(peopleDefinitelyClashingMeetings, name, meeting, other)
+						clashingDefinitely = true
 						break
 					case Clash.NEAR:
 						objAddClash(peopleNearlyClashingMeetings, name, meeting, other)
+						clashingNearly = true
 						break
 				}
 			}
@@ -644,8 +653,6 @@ function main() {
 	const invalidOutput = outputInvalidMeetings(invalidMeetings)
 	const plannedLinks = htmlDayMeetingLinks(dayMeetings)
 	const planned = outputPlannedMeetings(meetings)
-	const clashing = outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
-	const nearlyClashing = outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
 	const htmlEnd = '</body></html>'
 
 	const html = htmlStart +
@@ -654,10 +661,12 @@ function main() {
 		'<h3>Summary</h3>' +
 		plannedLinks +
 		planned +
-		'<h2 id="clashing">Definitely clashing meetings</h2>' +
-		clashing +
-		'<h2 id="near">Nearly clashing meetings</h2>' +
-		nearlyClashing +
+		(clashingDefinitely
+			? '<h2 id="clashing">Definitely clashing meetings</h2>' + outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
+			: '') +
+		(clashingNearly
+			? '<h2 id="near">Nearly clashing meetings</h2>' +outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
+			: '') +
 		htmlEnd
 
 	fs.writeFileSync(args.output, html)
