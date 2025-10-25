@@ -668,14 +668,19 @@ function main() {
 			<link rel="stylesheet" href="${args.style}">
 		</head>
 		<body>
-			<h1>TPAC Schedule Helper</h1>
-			<ul>
-				<li><p>${sectionLink(invalidMeetings, invalidId, invalidHeading)}</p></li>
-				<li><p>${sectionLink(meetings, plannedId, plannedHeading)}</p></li>
-				<li><p>${sectionLink(peopleDefinitelyClashingMeetings, clashingId, clashingHeading)}</p></li>
-				<li><p>${sectionLink(peopleNearlyClashingMeetings, nearlyClashingId, nearlyClashingHeading)}</p></li>
-			</ul>`
-	const htmlEnd = '</body></html>'
+			<header>
+				<h1>TPAC Schedule Helper</h1>
+			</header>
+			<nav>
+				<ul>
+					<li><p>${sectionLink(invalidMeetings, invalidId, invalidHeading)}</p></li>
+					<li><p>${sectionLink(meetings, plannedId, plannedHeading)}</p></li>
+					<li><p>${sectionLink(peopleDefinitelyClashingMeetings, clashingId, clashingHeading)}</p></li>
+					<li><p>${sectionLink(peopleNearlyClashingMeetings, nearlyClashingId, nearlyClashingHeading)}</p></li>
+				</ul>
+			</nav>
+			<main>`
+	const htmlEnd = '</main></body></html>'
 
 	const html = htmlStart +
 		(invalidMeetings.length
