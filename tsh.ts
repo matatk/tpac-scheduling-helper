@@ -91,11 +91,13 @@ class ClashingMeetingSet {
 	}
 
 	add(a: Meeting, b: Meeting) {
-		const sorted: [Meeting, Meeting] = [a, b].sort((a, b) => a.tag - b.tag)
+		const sorted = [a, b].sort((a, b) => a.tag - b.tag)
+		if (sorted.length !== 2) throw('Sorted pair is not of length 2:' + sorted)
 		const ident = sorted.map(m => m.tag).join(':')
 		if (!this.#idPairs.has(ident)) {
 			this.#idPairs.add(ident)
-			this.#meetingPairs.push(sorted)
+			// TODO: Had to call it like this to satisfy ts - could be neater?
+			this.#meetingPairs.push([sorted[0], sorted[1]])
 		}
 	}
 
@@ -414,11 +416,11 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	const parentSection = (link?.parentElement?.parentElement?.parentElement)
 
 	const title = link?.firstElementChild?.textContent
-	const day = parentSection?.id
+	const rawDay = parentSection?.id
 	const start = link?.children[4].children[0].textContent
 	const end = link?.children[4].children[1].textContent
 
-	return { title, day, start, end }
+	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end }
 }
 
 function outputClashingMeetings(peopleClashingMeetings: Record<string, ClashingMeetingSet>, kind: string): string {
