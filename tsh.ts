@@ -108,6 +108,16 @@ class ClashingMeetingSet {
 	}
 }
 
+function sectionLink(collection: any[] | Record<any, any>, idref: string, pretty: string) {
+	const haveEntries = Array.isArray(collection)
+		? collection.length > 0
+		: Object.keys(collection).length > 0
+
+	return haveEntries
+		? `<a href="#${idref}">${pretty}</a>`
+		: `${pretty} (none)`
+}
+
 function objPushValue(obj: Object, key: string, thing: Object) {
 	if (!Array.isArray(obj[key])) {
 		obj[key] = [thing]
@@ -207,7 +217,7 @@ function isMeeting(p: Partial<Meeting>): p is Meeting {
 
 function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meeting> {
 	const bodyInfo = extractBodyInfo(issue.body)
-	const names = issue.assignees.map(assignee => assignee.name)
+	const names = issue.assignees.map(assignee => assignee.login)
 	const calendarInfo = calendarMeetingInfo(doc, bodyInfo.calendarUrl ?? '')
 
 	return {
@@ -499,7 +509,6 @@ function outputInvalidMeetings(ims: Partial<Meeting>[]): string {
 
 	console.log('// Invalid meeting issue entries')
 	console.log()
-	html += '<h2>Invalid meeting issue entries</h2>'
 	ims.forEach(p => {
 		displayPartial(p)
 		html += htmlForPartialMeeting(p)
@@ -518,7 +527,7 @@ function htmlDayMeetingLinks(dms: Map<Day, Meeting[]>): string {
 		for (const meeting of meetings) {
 			html += listItemFor(meeting, false)
 		}
-		html += `</ul></li>`
+		html += `</ul></i>`
 	})
 	html += '</ul>'
 	return html
@@ -636,6 +645,21 @@ function main() {
 		}
 	}
 
+	const plannedLinks = htmlDayMeetingLinks(dayMeetings)
+	const planned = outputPlannedMeetings(meetings)
+
+	const invalidId = 'invalid'
+	const invalidHeading = 'Invalid meeting entries'
+
+	const plannedId = 'planned'
+	const plannedHeading = 'Planned meetings'
+
+	const clashingId = 'clashing'
+	const clashingHeading = 'Clashing meetings'
+
+	const nearlyClashingId = 'nearly-clashing'
+	const nearlyClashingHeading = 'Nearly clashing meetings'
+
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
@@ -646,26 +670,29 @@ function main() {
 		<body>
 			<h1>TPAC Schedule Helper</h1>
 			<ul>
-				<li><p><a href="#planned">Planned meetings</a></p></li>
-				<li><p><a href="#clashing">Definitely clashing meetings</a></p></li>
-				<li><p><a href="#near">Nearly clashing meetings</a></p></li>
+				<li><p>${sectionLink(invalidMeetings, invalidId, invalidHeading)}</p></li>
+				<li><p>${sectionLink(meetings, plannedId, plannedHeading)}</p></li>
+				<li><p>${sectionLink(peopleDefinitelyClashingMeetings, clashingId, clashingHeading)}</p></li>
+				<li><p>${sectionLink(peopleNearlyClashingMeetings, nearlyClashingId, nearlyClashingHeading)}</p></li>
 			</ul>`
-	const invalidOutput = outputInvalidMeetings(invalidMeetings)
-	const plannedLinks = htmlDayMeetingLinks(dayMeetings)
-	const planned = outputPlannedMeetings(meetings)
 	const htmlEnd = '</body></html>'
 
 	const html = htmlStart +
-		invalidOutput +
-		'<h2 id="planned">Planned meetings</h2>' +
-		'<h3>Summary</h3>' +
-		plannedLinks +
-		planned +
+		(invalidMeetings.length
+			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
+				outputInvalidMeetings(invalidMeetings)
+			: '') +
+		(meetings.length
+			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
+				'<h3>Summary</h3>' +
+				plannedLinks +
+				planned
+			: '') +
 		(clashingDefinitely
-			? '<h2 id="clashing">Definitely clashing meetings</h2>' + outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
+			? `<h2 id="${clashingId}">${clashingHeading}</h2>${outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')}`
 			: '') +
 		(clashingNearly
-			? '<h2 id="near">Nearly clashing meetings</h2>' +outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
+			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>${outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')}`
 			: '') +
 		htmlEnd
 
