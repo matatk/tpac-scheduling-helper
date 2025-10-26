@@ -20,6 +20,10 @@
 	}
 }
 
+select {
+	font-size: inherit;
+}
+
 body {
 	width: 60rem;
 	max-width: 98vw;

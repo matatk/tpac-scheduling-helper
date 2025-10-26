@@ -12,6 +12,9 @@ const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
 type Day = typeof Days
 
+type PeopleMeetings = Record<string, Meeting[]>
+type PeopleClashingMeetings = Record<string, ClashingMeetingSet>
+
 const Match = {
 	'EXACT': 'Exact',
 	'SUBSET': 'Subset',
@@ -108,6 +111,31 @@ class ClashingMeetingSet {
 	[Symbol.iterator]() {
 		return this.#meetingPairs[Symbol.iterator]()
 	}
+}
+
+function peopleSelector(pms: PeopleMeetings): string {
+	if (Object.keys(pms).length === 0) return ''
+	let html = '<label>Show clashing meetings only for <select><option selected>(everyone)</option>'
+	Object.keys(pms).forEach(name => html += `<option value="${name}">${name}</option>`)
+	return html + '</select></label>'
+}
+
+function peopleSelectorStyle(pms: PeopleMeetings): string {
+	let html = '<style>\n'
+
+	html += 'section[data-person] { display: none; }'
+
+	html += `body:has(option:not([value]):checked) section[data-person] {
+		display: block;
+	}`
+
+	for (const person of Object.keys(pms)) {
+		html += `body:has(option[value="${person}"]:checked) section[data-person="${person}"] {
+			display: block;
+		}`
+	}
+
+	return html +'\n</style>'
 }
 
 function sectionLink(collection: any[] | Record<any, any>, idref: string, pretty: string) {
@@ -423,12 +451,13 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end }
 }
 
-function outputClashingMeetings(peopleClashingMeetings: Record<string, ClashingMeetingSet>, kind: string): string {
+function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, kind: string): string {
 	let html = ''
 	for (const name in peopleClashingMeetings) {
 		console.log(`// ${kind} clashing meetings for ${name}`)
 		console.log()
 		if (peopleClashingMeetings[name].size) {
+			html += `<section data-person="${name}">`
 			html += `<h3>${kind} clashing meetings for ${name}</h3><ul>`
 			for (const [m, o] of peopleClashingMeetings[name]) {
 				display(m)
@@ -438,6 +467,7 @@ function outputClashingMeetings(peopleClashingMeetings: Record<string, ClashingM
 				console.log()
 			}
 			html += '</ul>'
+			html += '</section>'
 			console.log()
 			console.log()
 		}
@@ -614,7 +644,7 @@ function main() {
 	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
 
 	const dayMeetings = new Map<Day, Meeting[]>
-	const peopleMeetings: Record<string, Meeting[]> = {}
+	const peopleMeetings: PeopleMeetings = {}
 
 	for (const meeting of meetings) {
 		for (const name of meeting.ourNames) {
@@ -623,8 +653,8 @@ function main() {
 		}
 	}
 
-	const peopleDefinitelyClashingMeetings: Record<string, ClashingMeetingSet> = {}
-	const peopleNearlyClashingMeetings: Record<string, ClashingMeetingSet> = {}
+	const peopleDefinitelyClashingMeetings: PeopleClashingMeetings = {}
+	const peopleNearlyClashingMeetings: PeopleClashingMeetings = {}
 
 	let clashingDefinitely = false
 	let clashingNearly = false
@@ -668,17 +698,19 @@ function main() {
 			<title>TPAC Schedule Helper</title>
 			<meta name="color-scheme" content="dark light" />
 			<link rel="stylesheet" href="${args.style}">
+			${peopleSelectorStyle(peopleMeetings)}
 		</head>
 		<body>
 			<header>
 				<h1>TPAC Schedule Helper</h1>
 			</header>
 			<nav>
+				${peopleSelector(peopleMeetings)}
 				<ul>
 					<li><p>${sectionLink(invalidMeetings, invalidId, invalidHeading)}</p></li>
-					<li><p>${sectionLink(meetings, plannedId, plannedHeading)}</p></li>
 					<li><p>${sectionLink(peopleDefinitelyClashingMeetings, clashingId, clashingHeading)}</p></li>
 					<li><p>${sectionLink(peopleNearlyClashingMeetings, nearlyClashingId, nearlyClashingHeading)}</p></li>
+					<li><p>${sectionLink(meetings, plannedId, plannedHeading)}</p></li>
 				</ul>
 			</nav>
 			<main>`
@@ -689,17 +721,17 @@ function main() {
 			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
 				outputInvalidMeetings(invalidMeetings)
 			: '') +
-		(meetings.length
-			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
-				'<h3>Summary</h3>' +
-				plannedLinks +
-				planned
-			: '') +
 		(clashingDefinitely
 			? `<h2 id="${clashingId}">${clashingHeading}</h2>${outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')}`
 			: '') +
 		(clashingNearly
 			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>${outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')}`
+			: '') +
+		(meetings.length
+			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
+				'<h3>Summary</h3>' +
+				plannedLinks +
+				planned
 			: '') +
 		htmlEnd
 
