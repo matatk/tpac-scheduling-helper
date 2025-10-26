@@ -660,6 +660,12 @@ function main() {
 		for (const meeting of peopleMeetings[name]) {
 			for (const other of peopleMeetings[name]) {
 				if (meeting === other) continue
+
+				// Cope with the case that the same meeting has been specified in multiple repos.
+				if (meeting.calendarUrl === other.calendarUrl &&
+					meeting.ourStart.equals(other.ourStart) &&
+					meeting.ourEnd.equals(other.ourEnd)) continue
+
 				switch (clashes(meeting, other)) {
 					case Clash.DEFO:
 						objAddClash(peopleDefinitelyClashingMeetings, name, meeting, other)
