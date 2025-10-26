@@ -75,6 +75,7 @@ type Meeting = {
 	notes?: string
 }
 
+const myName = 'TPAC scheduling helper'
 let meetingCounter = 1
 
 class ClashingMeetingSet {
@@ -117,27 +118,28 @@ function repo(issueUrl: string): string {
 
 function peopleSelector(pms: PeopleMeetings): string {
 	if (Object.keys(pms).length === 0) return ''
-	let html = '<label>Show clashing meetings only for <select><option selected>(everyone)</option>'
+	let html = '<label>Show clashing meetings for <select><option selected>everyone</option>'
 	Object.keys(pms).forEach(name => html += `<option value="${name}">${name}</option>`)
 	return html + '</select></label>'
 }
 
 function peopleSelectorStyle(pms: PeopleMeetings): string {
-	let html = '<style>'
+	let html = `<style>
+		section[data-person] {
+			display: none;
+		}
 
-	html += 'section[data-person] { display: none; }'
-
-	html += `body:has(option:not([value]):checked) section[data-person] {
-		display: block;
-	}`
+		body:has(select > option:not([value]):checked) section[data-person] {
+			display: block;
+		}`
 
 	for (const person of Object.keys(pms)) {
-		html += `body:has(option[value="${person}"]:checked) section[data-person="${person}"] {
+		html += `body:has(select > option[value="${person}"]:checked) section[data-person="${person}"] {
 			display: block;
 		}`
 	}
 
-	return html +'</style>'
+	return html + '</style>'
 }
 
 function sectionLink(collection: any[] | Record<any, any>, idref: string, pretty: string) {
@@ -497,7 +499,7 @@ function getArgs() {
 	return yargs(hideBin(process.argv)).parserConfiguration({
 		'flatten-duplicate-arrays': false
 	})
-		.usage('TPAC scheduling helper\n\nUsage: $0 [options]')
+		.usage(myName + '\n\nUsage: $0 [options]')
 		.option('label', {
 			alias: 'l',
 			type: 'string',
@@ -690,14 +692,14 @@ function main() {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>TPAC Schedule Helper</title>
+			<title>${myName}</title>
 			<meta name="color-scheme" content="dark light" />
 			<link rel="stylesheet" href="${args.style}">
 			${peopleSelectorStyle(peopleMeetings)}
 		</head>
 		<body>
 			<header>
-				<h1>TPAC Schedule Helper</h1>
+				<h1>${myName}</h1>
 			</header>
 			<nav>
 				${peopleSelector(peopleMeetings)}
