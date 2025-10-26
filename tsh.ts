@@ -75,13 +75,6 @@ type Meeting = {
 	notes?: string
 }
 
-type ConfigEntry = {
-	repo: string
-	label: string
-}
-
-type Config = ConfigEntry[]
-
 let meetingCounter = 1
 
 class ClashingMeetingSet {
@@ -111,6 +104,11 @@ class ClashingMeetingSet {
 	[Symbol.iterator]() {
 		return this.#meetingPairs[Symbol.iterator]()
 	}
+}
+
+function errorOut(...args: any) {
+	console.error(...args)
+	process.exit(42)
 }
 
 function peopleSelector(pms: PeopleMeetings): string {
@@ -203,14 +201,19 @@ function getSchedule(path: string) {
 }
 
 function getIssues(repo: string, label: string): GhIssue[] {
-	const process = 'gh'
+	const cmd = 'gh'
 	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999']
-	console.log(process, args.join(' '))
-	const child = spawnSync(process, args)
+	console.log(cmd, args.join(' '))
+	const child = spawnSync(cmd, args)
 	if (child.error) {
-		throw (child.stderr)
+		errorOut('Error reported by gh:', child.stderr)
 	}
-	return JSON.parse(child.stdout.toString())
+	try {
+		return JSON.parse(child.stdout.toString())
+	} catch (err) {
+		errorOut('Error parsing GitHub API result:', err.message ?? err)
+	}
+	return []  // NOTE: Here for TypeScript
 }
 
 function extractBodyInfo(body: String): Partial<GhBodyInfo> {
@@ -476,13 +479,10 @@ function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, 
 }
 
 function getArgs() {
-	return yargs(hideBin(process.argv))
+	return yargs(hideBin(process.argv)).parserConfiguration({
+		'flatten-duplicate-arrays': false
+	})
 		.usage('TPAC scheduling helper\n\nUsage: $0 [options]')
-		.option('config', {
-			alias: 'c',
-			type: 'string',
-			description: 'Path to JSON config file, of the form: [ { repo, label }, ... ]'
-		})
 		.option('label', {
 			alias: 'l',
 			type: 'string',
@@ -510,7 +510,7 @@ function getArgs() {
 			alias: 'r',
 			type: 'string',
 			array: true,
-			description: 'GitHub URL(s) of repo(s) containing TPAC meeting-planning issues (the same label will be applied to all repo searches - if you want to use different labels for different repos, you will need to make a config file)',
+			description: 'GitHub repo(s) containing TPAC meeting-planning issues. By default, the same label will be applied to all repo searches. If you want to use different labels for some repos, you can specify the label to use after the repo shortname/URL.'
 		})
 		.option('style', {
 			alias: 's',
@@ -519,20 +519,12 @@ function getArgs() {
 			default: 'style.css'
 		})
 		.check(argv => {
-			if (!!argv.repo && !!argv.queryResult && !!argv.config) {
-				throw("One of 'repo', 'query-result', or 'config' must be provided.")
+			if (!!argv.repo && !!argv.queryResult) {
+				throw("One of 'repo' or 'query-result' must be provided.")
 			}
 			return true
 		})
 		.parseSync()
-}
-
-function isConfig(c: any): c is Config {
-	if (!Array.isArray(c)) return false
-	if (c.every(m => typeof m === 'object' && typeof m.repo === 'string' && typeof m.label === 'string')) {
-		return true
-	}
-	return false
 }
 
 function outputInvalidMeetings(ims: Partial<Meeting>[]): string {
@@ -597,31 +589,19 @@ function main() {
 
 	if (!!args.repo) {
 		console.log('Querying repo(s)...')
-		for (const repo of args.repo) {
-			issues.push(...getIssues(repo, args.label))
+
+		if (!!args.repo && !args.repo.every(value =>
+			Array.isArray(value) && value.length > 0 && value.length < 3)) {
+			errorOut('Every repo option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The options specified were:', args.repo)
+		}
+
+		// NOTE: TypeScript doesn't seem to know it, but at this point we know that args.repo is an array of 1- or 2-value arrays.
+		for (const repoLabel of args.repo) {
+			issues.push(...getIssues(repoLabel[0], repoLabel[1] ?? args.label))
 		}
 	} else if (!!args.queryResult) {
 		console.log('Using existing query result.')
 		issues.push(...JSON.parse(fs.readFileSync(args.queryResult, 'utf-8')) as unknown as GhIssue[])
-	} else if (!!args.config) {
-		console.log('Querying repo(s) based on config file...')
-		const config = JSON.parse(fs.readFileSync(args.config, 'utf-8'))
-		if (isConfig(config)) {
-			for (const { repo, label } of config) {
-				issues.push(...getIssues(repo, label))
-			}
-		} else {
-			console.error(`Invalid config file. It should be JSON of the form:
-
-[
-	{
-		"repo": "<org/name or full URL>",
-		"label": "<label used for TPAC planning issues in this repo>"
-	},
-	. . .
-]`)
-			return
-		}
 	}
 
 	if (issues.length === 0) {
