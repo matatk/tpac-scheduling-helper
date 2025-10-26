@@ -646,8 +646,8 @@ function main() {
 	for (const meeting of meetings) {
 		for (const name of meeting.ourNames) {
 			objPushValue(peopleMeetings, name, meeting)
-			mapPushValue(dayMeetings, meeting.calendarDay, meeting)
 		}
+		mapPushValue(dayMeetings, meeting.calendarDay, meeting)
 	}
 
 	const peopleDefinitelyClashingMeetings: PeopleClashingMeetings = {}
