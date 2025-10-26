@@ -16,7 +16,7 @@ The tool can be run every so-often to check...
 
 * `curl` (if you want it to automatically download the schedule for you)
 
-## Installation
+## Getting ready
 
 1. Check out the repo.
 
@@ -30,22 +30,22 @@ The tool can be run every so-often to check...
 
 3. Repeat whenever you like.
 
-**Limitations:** The tool is capable of recognising the case where you plan to attend only _part_ of a meeting, but as the meeting's agenda is a free text field, with no established format, it can't check whether the particular slot within the larger meeting is still as you planned, so you'll need to check those things manually. (The tool will, however, remind you of that.)
+**Limitations:** The tool is capable of recognising the case where you plan to attend only _part_ of a meeting, but as the meeting's agenda is a free text field, with no established format (or a link to some other URL), it can't check whether the particular slot within the larger meeting is still as you planned, so you'll need to check those things manually. (The tool will, however, remind you of that.)
 
-## Example usage
+### Example usage
 
 To run it on _this_ repo (which contains some example TPAC planning issues), using the default issue label of 'tpac', you could invoke it like this (on Unix-like OSes):
 
 ```sh
 ./tsh.ts \
-	--repo 'matatk/tpac-scheduling-helper' \
+	--repo matatk/tpac-scheduling-helper \
 	--meetings schedule-meetings.html \
 	--output tpac.html
 ```
 
-## Issue format
+## GitHub issue format
 
-The title you give to issues isn't so important (the meeting will be picked up from the TPAC schedule - so that we're all on the same page).
+The issue title will be displayed in the output, but less prominently than the W3C Calendar meeting title. This ensures everyone has a consistent name for the meeting. But you can use the issue title to emphasise, for example, the part of the meeting you want to attend.
 
 The assignees are the people you would like to attend the meeting.
 
@@ -59,14 +59,32 @@ The body of the first comment on the issue needs to match the following format:
 [optional further lines contain your notes on the meeting]
 ```
 
-The reason you need to specify the day and time in the issue is so that there's a better chance the script can detect when a session has moved.
+You need to specify the day _and_ time in the issue so that the script can detect when a session has moved.
 
-The time should be in 24-hour format, with a colon (i.e. `HH:MM`).
+The time should be in 24-hour format, with a colon (i.e. 'HH:MM').
 
-The bit between the times can be either a plain hyphen or an en-dash, and the spaces are optional.
+The bit between the start and end times can be either a plain hyphen or an en-dash and the spaces are optional.
+
+As noted above, you can specify that you only want to attend part of a meeting, but you'll need to check the agenda manually.
+
+## Advanced usage
+
+### Querying multiple repos
+
+You can query across multiple GitHub repos in order to find scheduling issues. There are two ways to do this:
+
+* Pass multiple `--repo` options, each giving a GitHub repo's shortname or URL. In this case, the default label (or that specified via `--label` will be used for the queries). For example:
+
+	```sh
+	./tsh.ts --repo matatk/tpac-scheduling-helper --repo w3c/apa ...
+	```
+
+* For each `--repo` option, pass both a repo (shortname or URL) _and_ label. This will override the default (or `--label`) issue label for querying that repo. For example:
+
+	```sh
+	./tsh.ts --repo matatk/tpac-scheduling-helper tpac-2025 --repo w3c/apa ...
+	```
 
 ## Future plans
 
-I plan to add support for referring to multiple repos to get the scheduling data - so if you're in multiple W3C groups, you could check that the schedule works _across all of your groups_.
-
-Support for running across public and entirprise GitHub instances is also being worked on.
+Support for running across public and entirprise GitHub instances is being worked on.
