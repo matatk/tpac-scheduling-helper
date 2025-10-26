@@ -111,6 +111,10 @@ function errorOut(...args: any) {
 	process.exit(42)
 }
 
+function repo(issueUrl: string): string {
+	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
+}
+
 function peopleSelector(pms: PeopleMeetings): string {
 	if (Object.keys(pms).length === 0) return ''
 	let html = '<label>Show clashing meetings only for <select><option selected>(everyone)</option>'
@@ -119,7 +123,7 @@ function peopleSelector(pms: PeopleMeetings): string {
 }
 
 function peopleSelectorStyle(pms: PeopleMeetings): string {
-	let html = '<style>\n'
+	let html = '<style>'
 
 	html += 'section[data-person] { display: none; }'
 
@@ -133,7 +137,7 @@ function peopleSelectorStyle(pms: PeopleMeetings): string {
 		}`
 	}
 
-	return html +'\n</style>'
+	return html +'</style>'
 }
 
 function sectionLink(collection: any[] | Record<any, any>, idref: string, pretty: string) {
@@ -304,6 +308,8 @@ function display(meeting: Meeting) {
 
 	console.log('      tag:', meeting.tag)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
+	console.log(`Our title: ${meeting.ourTitle}`)
+	console.log('     Repo:', repo(meeting.ourIssueUrl))
 
 	if (match === Match.NOPE) {
 		console.log('  Cal day:', pretty(meeting.calendarDay))
@@ -328,6 +334,8 @@ function display(meeting: Meeting) {
 function displayPartial(meeting: Partial<Meeting>) {
 	console.log('      tag:', meeting.tag)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
+	console.log(`Our title: ${meeting.ourTitle}`)
+	console.log('     Repo:', meeting.ourIssueUrl ? repo(meeting.ourIssueUrl) : null)
 
 	console.log('  Cal day:', meeting.calendarDay ? pretty(meeting.calendarDay) : null)
 	console.log('  Our day:', meeting.ourDay ? pretty(meeting.ourDay) : null)
@@ -373,6 +381,13 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, skipName?: string): 
 	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>${nameHtml}`
 }
 
+function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
+	return `<div id="${meeting.tag}" class="meeting ${condition}">
+		<h4>${meeting.calendarTitle}</h4>
+		<p><i>${meeting.ourTitle}</i> <span>from: ${meeting.ourIssueUrl ? repo(meeting.ourIssueUrl) : null}</span></p>
+		<dl>`
+}
+
 function htmlForMeeting(meeting: Meeting): string {
 	const match = timeMatch(meeting)
 
@@ -403,12 +418,12 @@ function htmlForMeeting(meeting: Meeting): string {
 
 	out += '</div>'
 
-	return `<div id="${meeting.tag}" class="meeting ${condition}"><h4>${meeting.calendarTitle}</h4><p><i>${meeting.ourTitle}</i></p><dl>` + out
-
+	// TODO: Make the mapping of condition to string more type-y?
+	return htmlMeetingHeader(meeting, condition) + out
 }
 
 function htmlForPartialMeeting(meeting: Partial<Meeting>): string {
-	let out = `<div id="${meeting.tag}" class="meeting invalid"><h3>${meeting.calendarTitle}</h3><p><i>${meeting.ourTitle}</i></p><dl>`
+	let out = htmlMeetingHeader(meeting, 'invalid')
 
 	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
 	out += `<dt>Our day</dt><dd>${meeting.ourDay ? pretty(meeting.ourDay) : '???'}</dd>`
@@ -702,10 +717,12 @@ function main() {
 				outputInvalidMeetings(invalidMeetings)
 			: '') +
 		(clashingDefinitely
-			? `<h2 id="${clashingId}">${clashingHeading}</h2>${outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')}`
+			? `<h2 id="${clashingId}">${clashingHeading}</h2>` +
+				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
 			: '') +
 		(clashingNearly
-			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>${outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')}`
+			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>` +
+				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
 			: '') +
 		(meetings.length
 			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
