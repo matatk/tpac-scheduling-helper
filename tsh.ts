@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs from 'fs'
+import * as fs from 'fs'
 import { spawnSync } from 'child_process'
 
 import yargs from 'yargs'
@@ -10,7 +10,10 @@ import { Temporal } from '@js-temporal/polyfill'
 const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 
 type CombinedNames = Record<string, string>
+type DayMeetings = Map<Day, Meeting[]>
 type PeopleMeetings = Record<string, Meeting[]>
+type RepoMeetings = Record<string, Meeting[]>
+type RepoDuplicateMeetings = Record<string, Meeting[][]>
 type PeopleClashingMeetings = Record<string, ClashingMeetingSet>
 
 const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
@@ -113,6 +116,12 @@ function errorOut(...args: any) {
 	process.exit(42)
 }
 
+function sameActualMeeting(meeting: Meeting, other: Meeting) {
+	return meeting.calendarUrl === other.calendarUrl &&
+		meeting.ourStart.equals(other.ourStart) &&
+		meeting.ourEnd.equals(other.ourEnd)
+}
+
 function people(names: string[], combined: CombinedNames): string {
 	return names.map(name => name in combined
 		? combined[name] + ' (' + name + ')'
@@ -149,12 +158,8 @@ function peopleSelectorStyle(pms: PeopleMeetings): string {
 	return html + '</style>'
 }
 
-function sectionLink(collection: any[] | Record<any, any>, idref: string, pretty: string) {
-	const haveEntries = Array.isArray(collection)
-		? collection.length > 0
-		: Object.keys(collection).length > 0
-
-	return haveEntries
+function sectionLink(flag: boolean, idref: string, pretty: string) {
+	return flag
 		? `<a href="#${idref}">${pretty}</a>`
 		: `${pretty} (none)`
 }
@@ -502,6 +507,28 @@ function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, 
 	return html
 }
 
+function outputPossibleDuplicateMeetings(pdm: RepoDuplicateMeetings, combined: CombinedNames): string {
+	let html = ''
+	for (const repo in pdm) {
+		console.log(`// Possible duplicate meetings in ${repo}`)
+		console.log()
+		html += `<h3>Possibly duplicate meetings in ${repo}</h3>`
+		for (const [index, meetings] of pdm[repo].entries()) {
+			html += `<p>Set of possible duplicates ${index + 1}:</p>`
+			html += '<ul>'
+			for (const m of meetings) {
+				display(m, combined)
+				html += `<li><p>${oneLinerFor(m, true, combined)}</p></li>`
+				console.log()
+			}
+			html += '</ul>'
+		}
+		console.log()
+		console.log()
+	}
+	return html
+}
+
 function getArgs() {
 	return yargs(hideBin(process.argv)).parserConfiguration({
 		'flatten-duplicate-arrays': false
@@ -591,7 +618,7 @@ function htmlDayMeetingLinks(dms: Map<Day, Meeting[]>, equivalents: CombinedName
 function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames): string {
 	console.log('// Planned meetings')
 	console.log()
-	let html = '' // NOTE: This heading is done elsewhere, due to the meeting summary
+	let html = ''
 	let currentDay: Day | null = null
 
 	for (const meeting of pms) {
@@ -675,21 +702,39 @@ function main() {
 
 	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
 
-	const dayMeetings = new Map<Day, Meeting[]>
+	const haveInvalidMeetings = invalidMeetings.length > 0
+	const haveMeetings = meetings.length > 0
+
+	const dayMeetings: DayMeetings = new Map()
 	const peopleMeetings: PeopleMeetings = {}
+	const repoMeetings: RepoMeetings = {}
 
 	for (const meeting of meetings) {
 		for (const name of meeting.ourNames) {
 			objPushValue(peopleMeetings, equivalents[name] ?? name, meeting)
 		}
 		mapPushValue(dayMeetings, meeting.calendarDay, meeting)
+		objPushValue(repoMeetings, repo(meeting.ourIssueUrl), meeting)
 	}
+
+	// TODO: Find a neater way to groupBy across two properties than having the intermediate structure
+	const repoPossibleDuplicates: Record<string, Meeting[][]> = {}
+	for (const repo in repoMeetings) {
+		const possibleDupes = Object.values(
+			Object.groupBy(repoMeetings[repo], meeting => meeting.calendarUrl)
+		).filter(group => group.length > 1)
+		if (possibleDupes.length > 0) {
+			repoPossibleDuplicates[repo] = possibleDupes
+		}
+	}
+
+	const havePossibleDuplicates = Object.keys(repoPossibleDuplicates).length > 0
 
 	const peopleDefinitelyClashingMeetings: PeopleClashingMeetings = {}
 	const peopleNearlyClashingMeetings: PeopleClashingMeetings = {}
 
-	let clashingDefinitely = false
-	let clashingNearly = false
+	let haveDefinitelyClashing = false
+	let haveNearlyClashing = false
 
 	for (const name in peopleMeetings) {
 		for (const meeting of peopleMeetings[name]) {
@@ -697,18 +742,16 @@ function main() {
 				if (meeting === other) continue
 
 				// Cope with the case that the same meeting has been specified in multiple repos.
-				if (meeting.calendarUrl === other.calendarUrl &&
-					meeting.ourStart.equals(other.ourStart) &&
-					meeting.ourEnd.equals(other.ourEnd)) continue
+				if (sameActualMeeting(meeting, other)) continue
 
 				switch (clashes(meeting, other)) {
 					case Clash.DEFO:
 						objAddClash(peopleDefinitelyClashingMeetings, name, meeting, other)
-						clashingDefinitely = true
+						haveDefinitelyClashing = true
 						break
 					case Clash.NEAR:
 						objAddClash(peopleNearlyClashingMeetings, name, meeting, other)
-						clashingNearly = true
+						haveNearlyClashing = true
 						break
 				}
 			}
@@ -720,6 +763,9 @@ function main() {
 
 	const invalidId = 'invalid'
 	const invalidHeading = 'Invalid meeting entries'
+
+	const possibleDuplicatesId = 'possible-duplicates'
+	const possibleDuplicatesHeading = 'Possible duplicate meetings'
 
 	const plannedId = 'planned'
 	const plannedHeading = 'Planned meetings'
@@ -746,29 +792,37 @@ function main() {
 				<h2>Navigation and filtering</h2>
 				${peopleSelector(peopleMeetings)}
 				<ul>
-					<li><p>${sectionLink(invalidMeetings, invalidId, invalidHeading)}</p></li>
-					<li><p>${sectionLink(peopleDefinitelyClashingMeetings, clashingId, clashingHeading)}</p></li>
-					<li><p>${sectionLink(peopleNearlyClashingMeetings, nearlyClashingId, nearlyClashingHeading)}</p></li>
-					<li><p>${sectionLink(meetings, plannedId, plannedHeading)}</p></li>
+					<li><p>${sectionLink(haveInvalidMeetings, invalidId, invalidHeading)}</p></li>
+					<li><p>${sectionLink(havePossibleDuplicates, possibleDuplicatesId, possibleDuplicatesHeading)}</p></li>
+					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
+					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
+					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
 				</ul>
 			</nav>
 			<main>`
 	const htmlEnd = '</main></body></html>'
 
 	const html = htmlStart +
-		(invalidMeetings.length
+		(haveInvalidMeetings
 			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
+				'<p>A meeting would be flagged as invalid if it was cancelled, and thus deleted from the schedule page.</p>' +
 				outputInvalidMeetings(invalidMeetings, equivalents)
 			: '') +
-		(clashingDefinitely
+		(havePossibleDuplicates
+			? `<h2 id="${possibleDuplicatesId}">${possibleDuplicatesHeading}</h2>` +
+				'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>' +
+				'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>' +
+				outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents)
+			: '') +
+		(haveDefinitelyClashing
 			? `<h2 id="${clashingId}">${clashingHeading}</h2>` +
 				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents)
 			: '') +
-		(clashingNearly
+		(haveNearlyClashing
 			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>` +
 				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
 			: '') +
-		(meetings.length
+		(haveMeetings
 			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
 				'<h3>Summary</h3>' +
 				plannedLinks +
