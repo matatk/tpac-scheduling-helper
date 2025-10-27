@@ -20,14 +20,14 @@
 	}
 }
 
-select {
-	font-size: inherit;
-}
-
 body {
 	width: 60rem;
 	max-width: 98vw;
 	margin: auto;
+}
+
+select {
+	font-size: inherit;
 }
 
 .meeting {
@@ -52,6 +52,10 @@ body {
 	border: 4px dashed var(--invalid);
 }
 
+:target.meeting {
+	border: 4px solid var(--highlight);
+}
+
 .meeting>:first-child {
 	margin-block-end: 0;
 }
@@ -67,10 +71,6 @@ body {
 	margin-block-end: 1rem;
 }
 
-summary {
-	cursor: pointer;
-}
-
 dl {
 	display: grid;
 	grid-template-columns: max-content auto;
@@ -84,6 +84,10 @@ dt::after {
 	content: ':'
 }
 
-:target.meeting {
-	border: 4px solid var(--highlight);
+summary {
+	cursor: pointer;
+}
+
+pre {
+	white-space: pre-wrap;
 }
