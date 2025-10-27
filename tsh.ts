@@ -9,11 +9,12 @@ import { Temporal } from '@js-temporal/polyfill'
 
 const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 
-const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
-type Day = typeof Days
-
+type CombinedNames = Record<string, string>
 type PeopleMeetings = Record<string, Meeting[]>
 type PeopleClashingMeetings = Record<string, ClashingMeetingSet>
+
+const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+type Day = typeof Days
 
 const Match = {
 	'EXACT': 'Exact',
@@ -110,6 +111,12 @@ class ClashingMeetingSet {
 function errorOut(...args: any) {
 	console.error(...args)
 	process.exit(42)
+}
+
+function people(names: string[], combined: CombinedNames): string {
+	return names.map(name => name in combined
+		? combined[name] + ' (' + name + ')'
+		: name).join(', ')
 }
 
 function repo(issueUrl: string): string {
@@ -305,7 +312,7 @@ function clashes(m: Meeting, o: Meeting): ClashStatus {
 	return Clash.NONE
 }
 
-function display(meeting: Meeting) {
+function display(meeting: Meeting, combined: CombinedNames) {
 	const match = timeMatch(meeting)
 
 	console.log('      tag:', meeting.tag)
@@ -327,13 +334,13 @@ function display(meeting: Meeting) {
 		console.log('     Time:', dtf(meeting.ourStart), '-', dtf(meeting.ourEnd))
 	}
 
-	console.log('   People:', meeting.ourNames)
+	console.log('   People:', people(meeting.ourNames, combined))
 	console.log('  Cal URL:', meeting.calendarUrl)
 	console.log('  Our URL:', meeting.ourIssueUrl)
 	console.log('    Match:', timeMatch(meeting))
 }
 
-function displayPartial(meeting: Partial<Meeting>) {
+function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
 	console.log('      tag:', meeting.tag)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
 	console.log(`Our title: ${meeting.ourTitle}`)
@@ -345,14 +352,14 @@ function displayPartial(meeting: Partial<Meeting>) {
 	console.log(' Cal time:', meeting.calendarStart ? dtf(meeting.calendarStart) : '??', '-', meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??')
 	console.log(' Our time:', meeting.ourStart ? dtf(meeting.ourStart) : '??', '-', meeting.ourEnd ? dtf(meeting.ourEnd) : '??')
 
-	console.log('   People:', meeting.ourNames)
+	console.log('   People:', meeting.ourNames ? people(meeting.ourNames, combined) : null)
 	console.log('  Cal URL:', meeting.calendarUrl)
 	console.log('  Our URL:', meeting.ourIssueUrl)
 }
 
-function htmlPeopleAndUrls(meeting: Partial<Meeting>): string {
+function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): string {
 	let out = ''
-	out += `<dt>People</dt><dd>${meeting.ourNames}</dd>`
+	out += `<dt>People</dt><dd>${meeting.ourNames ? people(meeting.ourNames, combined) : null}</dd>`
 	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl}">${meeting.calendarUrl}</a></dd>`
 	out += `<dt>Our issue URL</dt><dd><a href="${meeting.ourIssueUrl}">${meeting.ourIssueUrl}</a></dd>`
 	return out
@@ -368,17 +375,17 @@ function htmlNotes(meeting: Partial<Meeting>): string {
 	return ''
 }
 
-function listItemFor(meeting: Meeting, includeDay: boolean): string {
-	return `<li><p>${oneLinerFor(meeting, includeDay)}</p></li>`
+function listItemFor(meeting: Meeting, includeDay: boolean, combined: CombinedNames): string {
+	return `<li><p>${oneLinerFor(meeting, includeDay,combined)}</p></li>`
 }
 
-function oneLinerFor(meeting: Meeting, includeDay: boolean, skipName?: string): string {
+function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNames, skipName?: string): string {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
 	const names = skipName
 		? meeting.ourNames.filter(name => name !== skipName)
 		: meeting.ourNames
 	const nameHtml = names.length
-		? `, <i>${names.join(', ')}</i>`
+		? `, <i>${people(names, combned)}</i>`
 		: ''
 	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>${nameHtml}`
 }
@@ -390,7 +397,7 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string
 		<dl>`
 }
 
-function htmlForMeeting(meeting: Meeting): string {
+function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	const match = timeMatch(meeting)
 
 	let out = ''
@@ -412,7 +419,7 @@ function htmlForMeeting(meeting: Meeting): string {
 		out += `<dt>Time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
 	}
 
-	out += htmlPeopleAndUrls(meeting)
+	out += htmlPeopleAndUrls(meeting, combined)
 	out += `<dt>Time match</dt><dd>${timeMatch(meeting)}</dd>`
 	out += '</dl>'
 
@@ -424,7 +431,7 @@ function htmlForMeeting(meeting: Meeting): string {
 	return htmlMeetingHeader(meeting, condition) + out
 }
 
-function htmlForPartialMeeting(meeting: Partial<Meeting>): string {
+function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames): string {
 	let out = htmlMeetingHeader(meeting, 'invalid')
 
 	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
@@ -433,7 +440,7 @@ function htmlForPartialMeeting(meeting: Partial<Meeting>): string {
 	out += `<dt>Calendar time</dt><dd>${meeting.calendarStart ? dtf(meeting.calendarStart) : '??'}&ndash;${meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??'}</dd>`
 	out += `<dt>Our time</dt><dd>${meeting.ourStart ? dtf(meeting.ourStart) : '??'}&ndash;${meeting.ourEnd ? dtf(meeting.ourEnd) : '??'}</dd>`
 
-	out += htmlPeopleAndUrls(meeting)
+	out += htmlPeopleAndUrls(meeting, combined)
 
 	out += '</dl>'
 	out += htmlNotes(meeting)
@@ -471,7 +478,7 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end }
 }
 
-function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, kind: string): string {
+function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, kind: string, combined: CombinedNames): string {
 	let html = ''
 	for (const name in peopleClashingMeetings) {
 		console.log(`// ${kind} clashing meetings for ${name}`)
@@ -480,10 +487,10 @@ function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, 
 			html += `<section data-person="${name}">`
 			html += `<h3>${kind} clashing meetings for ${name}</h3><ul>`
 			for (const [m, o] of peopleClashingMeetings[name]) {
-				display(m)
+				display(m, combined)
 				console.log('...and...')
-				display(o)
-				html += `<li><p>${oneLinerFor(m, true, name)}<br>and<br>${oneLinerFor(o, true, name)}</p></li>`
+				display(o, combined)
+				html += `<li><p>${oneLinerFor(m, true, combined, name)}<br>and<br>${oneLinerFor(o, true, combined, name)}</p></li>`
 				console.log()
 			}
 			html += '</ul>'
@@ -500,6 +507,12 @@ function getArgs() {
 		'flatten-duplicate-arrays': false
 	})
 		.usage(myName + '\n\nUsage: $0 [options]')
+		.option('combine', {
+			alias: 'c',
+			type: 'string',
+			array: true,
+			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.'
+		})
 		.option('label', {
 			alias: 'l',
 			type: 'string',
@@ -541,18 +554,19 @@ function getArgs() {
 			}
 			return true
 		})
+		.strict()
 		.parseSync()
 }
 
-function outputInvalidMeetings(ims: Partial<Meeting>[]): string {
+function outputInvalidMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames): string {
 	if (ims.length === 0) return ''
 	let html = ''
 
 	console.log('// Invalid meeting issue entries')
 	console.log()
 	ims.forEach(p => {
-		displayPartial(p)
-		html += htmlForPartialMeeting(p)
+		displayPartial(p, equivalents)
+		html += htmlForPartialMeeting(p, equivalents)
 		console.log()
 	})
 
@@ -561,12 +575,12 @@ function outputInvalidMeetings(ims: Partial<Meeting>[]): string {
 	return html
 }
 
-function htmlDayMeetingLinks(dms: Map<Day, Meeting[]>): string {
+function htmlDayMeetingLinks(dms: Map<Day, Meeting[]>, equivalents: CombinedNames): string {
 	let html = '<ul>'
 	dms.forEach((meetings, day) => {
 		html += `<li>${pretty(day)}<ul>`
 		for (const meeting of meetings) {
-			html += listItemFor(meeting, false)
+			html += listItemFor(meeting, false, equivalents)
 		}
 		html += `</ul></i>`
 	})
@@ -574,7 +588,7 @@ function htmlDayMeetingLinks(dms: Map<Day, Meeting[]>): string {
 	return html
 }
 
-function outputPlannedMeetings(pms: Meeting[]): string {
+function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames): string {
 	console.log('// Planned meetings')
 	console.log()
 	let html = '' // NOTE: This heading is done elsewhere, due to the meeting summary
@@ -586,9 +600,9 @@ function outputPlannedMeetings(pms: Meeting[]): string {
 			console.log(pretty(meeting.calendarDay))
 			html += `<h3>${pretty(meeting.calendarDay)}</h3>`
 		}
-		display(meeting)
+		display(meeting, equivalents)
 		console.log()
-		html += htmlForMeeting(meeting)
+		html += htmlForMeeting(meeting, equivalents)
 	}
 
 	console.log()
@@ -598,6 +612,21 @@ function outputPlannedMeetings(pms: Meeting[]): string {
 
 function main() {
 	const args = getArgs()
+	const equivalents: CombinedNames = {}
+
+	// FIXME: Figure out TypeScript/yargs workaround, and DRY with the below
+	if (!!args.combine) {
+		if (args.combine.length === 2 && args.combine.every(value => typeof value === 'string')) {
+			args.combine = [args.combine]
+		}
+		if (!args.combine!.every(value =>
+			Array.isArray(value) && value.length === 2)) {
+			errorOut("Every 'equivalent' option value must be a pair of two usernames to consider equal. The values specified were:", args.combine)
+		}
+		for (const [name, otherName] of args.combine!) {
+			equivalents[name] = otherName
+		}
+	}
 
 	const dom = new JSDOM(getSchedule(args.meetings))
 	const doc = dom.window.document
@@ -607,13 +636,18 @@ function main() {
 	if (!!args.repo) {
 		console.log('Querying repo(s)...')
 
-		if (!!args.repo && !args.repo.every(value =>
-			Array.isArray(value) && value.length > 0 && value.length < 3)) {
-			errorOut('Every repo option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The options specified were:', args.repo)
+		// FIXME: Figure out TypeScript/yargs workaround, and DRY with the above
+		if (!!args.repo) {
+			if (args.repo.length == 2 && args.repo.every(value => typeof value === 'string')) {
+				args.repo = [args.repo]
+			}
+			if (!args.repo!.every(value =>
+				Array.isArray(value) && value.length > 0 && value.length < 3)) {
+				errorOut("Every 'repo' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:", args.repo)
+			}
 		}
-
 		// NOTE: TypeScript doesn't seem to know it, but at this point we know that args.repo is an array of 1- or 2-value arrays.
-		for (const repoLabel of args.repo) {
+		for (const repoLabel of args.repo!) {
 			issues.push(...getIssues(repoLabel[0], repoLabel[1] ?? args.label))
 		}
 	} else if (!!args.queryResult) {
@@ -645,7 +679,7 @@ function main() {
 
 	for (const meeting of meetings) {
 		for (const name of meeting.ourNames) {
-			objPushValue(peopleMeetings, name, meeting)
+			objPushValue(peopleMeetings, equivalents[name] ?? name, meeting)
 		}
 		mapPushValue(dayMeetings, meeting.calendarDay, meeting)
 	}
@@ -680,8 +714,8 @@ function main() {
 		}
 	}
 
-	const plannedLinks = htmlDayMeetingLinks(dayMeetings)
-	const planned = outputPlannedMeetings(meetings)
+	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
+	const planned = outputPlannedMeetings(meetings, equivalents)
 
 	const invalidId = 'invalid'
 	const invalidHeading = 'Invalid meeting entries'
@@ -722,15 +756,15 @@ function main() {
 	const html = htmlStart +
 		(invalidMeetings.length
 			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
-				outputInvalidMeetings(invalidMeetings)
+				outputInvalidMeetings(invalidMeetings, equivalents)
 			: '') +
 		(clashingDefinitely
 			? `<h2 id="${clashingId}">${clashingHeading}</h2>` +
-				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely')
+				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents)
 			: '') +
 		(clashingNearly
 			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>` +
-				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly')
+				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
 			: '') +
 		(meetings.length
 			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
