@@ -522,7 +522,7 @@ function getArgs() {
 		.option('meetings', {
 			alias: 'm',
 			type: 'string',
-			description: "Path to local meetings schedule file - it will be downloaded if it doesn't exist",
+			description: "Path to local meetings schedule HTML file - it will be downloaded if it doesn't exist",
 			required: true
 		})
 		.option('output', {
@@ -534,7 +534,7 @@ function getArgs() {
 		.option('query-result', {
 			alias: 'q',
 			type: 'string',
-			description: 'Path to local JSON file that contains a GitHub API query response (for debugging)',
+			description: 'Path to local JSON file that contains issues returned in GitHub API query responses (for debugging)'
 		})
 		.option('repo', {
 			alias: 'r',
@@ -542,18 +542,18 @@ function getArgs() {
 			array: true,
 			description: 'GitHub repo(s) containing TPAC meeting-planning issues. By default, the same label will be applied to all repo searches. If you want to use different labels for some repos, you can specify the label to use after the repo shortname/URL.'
 		})
+		.option('save-result', {
+			alias: 'S',
+			type: 'string',
+			description: 'Path to local JSON file to save all issues returned from all GitHub API query responses (for debugging)'
+		})
 		.option('style', {
 			alias: 's',
 			type: 'string',
 			description: 'Name of CSS file you provide to style the HTML output',
 			default: 'style.css'
 		})
-		.check(argv => {
-			if (!!argv.repo && !!argv.queryResult) {
-				throw("One of 'repo' or 'query-result' must be provided.")
-			}
-			return true
-		})
+		.conflicts('query-result', 'save-result')
 		.strict()
 		.parseSync()
 }
@@ -633,7 +633,10 @@ function main() {
 
 	const issues: GhIssue[] = []
 
-	if (!!args.repo) {
+	if (!!args.queryResult) {
+		console.log('Using existing query result.')
+		issues.push(...JSON.parse(fs.readFileSync(args.queryResult, 'utf-8')) as unknown as GhIssue[])
+	} else if (!!args.repo) {
 		console.log('Querying repo(s)...')
 
 		// FIXME: Figure out TypeScript/yargs workaround, and DRY with the above
@@ -650,15 +653,13 @@ function main() {
 		for (const repoLabel of args.repo!) {
 			issues.push(...getIssues(repoLabel[0], repoLabel[1] ?? args.label))
 		}
-	} else if (!!args.queryResult) {
-		console.log('Using existing query result.')
-		issues.push(...JSON.parse(fs.readFileSync(args.queryResult, 'utf-8')) as unknown as GhIssue[])
 	}
 
 	if (issues.length === 0) {
 		console.error('No issues found')
 		return
 	}
+	console.log()
 
 	const meetings: Meeting[] = []
 	const invalidMeetings: Partial<Meeting>[] = []
@@ -742,6 +743,7 @@ function main() {
 				<h1>${myName}</h1>
 			</header>
 			<nav>
+				<h2>Navigation and filtering</h2>
 				${peopleSelector(peopleMeetings)}
 				<ul>
 					<li><p>${sectionLink(invalidMeetings, invalidId, invalidHeading)}</p></li>
@@ -776,6 +778,10 @@ function main() {
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output)
+	if (!!args.saveResult) {
+		fs.writeFileSync(args.saveResult, JSON.stringify(issues, null, 2))
+		console.log('Written', args.saveResult)
+	}
 }
 
 main()
