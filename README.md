@@ -85,6 +85,18 @@ You can query across multiple GitHub repos in order to find scheduling issues. T
 	./tsh.ts --repo matatk/tpac-scheduling-helper tpac-2025 --repo w3c/apa ...
 	```
 
+### Combining GitHub usernames
+
+If you are querying across public and enterprise GitHub instances, the same person may have different usernames. In this case, you can tell the tool to override one with the other, via the `--combine` option.
+
+For example, passing `--combine TopSecretAnna PublicAnna` will instruct the tool to treat occurences of the username 'TopSecretAnna' as if they had been 'PublicAnna' all along. This ensures clashing meetings are correctly identified.
+
+When a name is overridden, this is noted in the tool's output.
+
+The look-up is only done once: attempting to override a name that was already overriding another name will not produce the desired results. However, it is possible to override multiple names with one other name.
+
 ## Future plans
 
-Support for running across public and entirprise GitHub instances is being worked on.
+* Output improvements based on the experience of using it this year.
+
+* Investigate wether there is/could be an API for querying the W3C Calendar - or at least a neater way to get the data.
