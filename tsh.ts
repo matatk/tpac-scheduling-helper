@@ -20,16 +20,16 @@ const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
 type Day = typeof Days
 
 const Match = {
-	'EXACT': 'Exact',
-	'SUBSET': 'Subset',
-	'NOPE': 'Nope'
+	EXACT: 'exact',
+	SUBSET: 'subset',
+	NOPE: 'nope'
 } as const
 type MatchStatus = typeof Match[keyof typeof Match]
 
 const Clash = {
-	'NONE': 'No clash',
-	'DEFO': 'CLASHES!',
-	'NEAR': 'Mind Gap'
+	NONE: 'No clash',
+	DEFO: 'CLASHES!',
+	NEAR: 'Mind Gap'
 } as const
 type ClashStatus = typeof Clash[keyof typeof Clash]
 
@@ -404,20 +404,16 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string
 
 function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	const match = timeMatch(meeting)
-
 	let out = ''
-	let condition = 'exact'
 
 	if (match === Match.NOPE) {
-		condition = 'nope'
 		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 		out += `<dt>Our day</dt><dd>${pretty(meeting.ourDay)}</dd>`
 	} else {
 		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
-	if (match !== Match.EXACT) {
-		condition = 'subset'
+	if (match !== Match.SUBSET) {
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 		out += `<dt>Our time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
 	} else {
@@ -433,7 +429,7 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	out += '</div>'
 
 	// TODO: Make the mapping of condition to string more type-y?
-	return htmlMeetingHeader(meeting, condition) + out
+	return htmlMeetingHeader(meeting, match) + out
 }
 
 function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames): string {
