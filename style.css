@@ -8,6 +8,10 @@
 	--nope: red;
 	--invalid: red;
 	--highlight: blue;
+
+	--toprule: 0.15em;
+	--midrule: calc(0.5 * var(--toprule));
+	--totally-rules: 0.01em;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,4 +94,27 @@ summary {
 
 pre {
 	white-space: pre-wrap;
+}
+
+table {
+	margin: auto;
+	border-collapse: collapse;
+}
+
+th {
+	font-weight: bold;
+	padding: 1em;
+}
+
+thead tr:first-child {
+	border-block-start: var(--toprule) solid currentColor;
+	border-block-end: var(--midrule) solid currentColor;
+}
+
+tr {
+	border-block-end: var(--totally-rules) solid currentColor;
+}
+
+tr:last-child {
+	border-block-end: var(--toprule) solid currentColor;
 }
