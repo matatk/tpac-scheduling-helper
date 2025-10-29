@@ -664,7 +664,7 @@ function main() {
 
 		// FIXME: Figure out TypeScript/yargs workaround, and DRY with the above
 		if (!!args.repo) {
-			if (args.repo.length == 2 && args.repo.every(value => typeof value === 'string')) {
+			if (args.repo.length <= 2 && args.repo.every(value => typeof value === 'string')) {
 				args.repo = [args.repo]
 			}
 			if (!args.repo!.every(value =>
