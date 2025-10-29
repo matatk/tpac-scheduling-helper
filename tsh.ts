@@ -406,14 +406,14 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	const match = timeMatch(meeting)
 	let out = ''
 
-	if (match === Match.NOPE) {
+	if (match === Match.NOPE && meeting.ourDay !== meeting.calendarDay) {
 		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 		out += `<dt>Our day</dt><dd>${pretty(meeting.ourDay)}</dd>`
 	} else {
 		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
-	if (match !== Match.SUBSET) {
+	if (match !== Match.EXACT) {
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 		out += `<dt>Our time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
 	} else {
