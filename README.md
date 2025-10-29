@@ -12,7 +12,7 @@ The tool can be run every so-often to check...
 
 * Node
 
-* `gh`
+* `gh` - make sure you're logged in to any GitHub instances you want to query, including GitHub.com (you can check this with `gh auth status`)
 
 * `curl` (if you want it to automatically download the schedule for you)
 
