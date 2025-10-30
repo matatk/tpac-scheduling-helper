@@ -17,7 +17,10 @@ type RepoDuplicateMeetings = Record<string, Meeting[][]>
 type PeopleClashingMeetings = Record<string, ClashingMeetingSet>
 
 const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
-type Day = typeof Days
+type Day = typeof Days[number]
+
+const Kinds = ['group', 'breakout'] as const
+type Kind = typeof Kinds[number]
 
 const Match = {
 	EXACT: 'exact',
@@ -61,10 +64,12 @@ type CalendarMeetingInfo = {
 	day: Day
 	start: string
 	end: string
+	kind: Kind
 }
 
 type Meeting = {
 	tag: number
+	kind: Kind
 	calendarTitle: string
 	ourTitle: string
 	calendarDay: Day
@@ -109,6 +114,11 @@ class ClashingMeetingSet {
 	[Symbol.iterator]() {
 		return this.#meetingPairs[Symbol.iterator]()
 	}
+}
+
+function kindFromHeading(heading: string): Kind {
+	if (heading.toLowerCase().startsWith('group meetings')) return 'group'
+	return 'breakout'
 }
 
 function errorOut(...args: any) {
@@ -253,6 +263,7 @@ function extractBodyInfo(body: String): Partial<GhBodyInfo> {
 
 function isMeeting(p: Partial<Meeting>): p is Meeting {
 	return !!p.tag &&
+		!!p.kind &&
 		!!p.calendarTitle &&
 		!!p.ourTitle &&
 		!!p.calendarDay &&
@@ -273,6 +284,7 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 
 	return {
 		tag: meetingCounter++,
+		kind: calendarInfo.kind,
 		calendarTitle: calendarInfo?.title,
 		ourTitle: issue.title,
 		calendarDay: calendarInfo?.day,
@@ -321,6 +333,7 @@ function display(meeting: Meeting, combined: CombinedNames) {
 	const match = timeMatch(meeting)
 
 	console.log('      tag:', meeting.tag)
+	console.log('     kind:', meeting.kind)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
 	console.log(`Our title: ${meeting.ourTitle}`)
 	console.log('     Repo:', repo(meeting.ourIssueUrl))
@@ -347,6 +360,7 @@ function display(meeting: Meeting, combined: CombinedNames) {
 
 function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
 	console.log('      tag:', meeting.tag)
+	console.log('     kind:', meeting.kind)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
 	console.log(`Our title: ${meeting.ourTitle}`)
 	console.log('     Repo:', meeting.ourIssueUrl ? repo(meeting.ourIssueUrl) : null)
@@ -399,7 +413,8 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string
 	return `<div id="${meeting.tag}" class="meeting ${condition}">
 		<h4>${meeting.calendarTitle}</h4>
 		<p><i>${meeting.ourTitle}</i> <span>from: ${meeting.ourIssueUrl ? repo(meeting.ourIssueUrl) : null}</span></p>
-		<dl>`
+		<dl>
+			<dt>Kind</dt><dd>${meeting.kind}</dd>`
 }
 
 function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
@@ -475,8 +490,9 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	const rawDay = parentSection?.id
 	const start = link?.children[4].children[0].textContent
 	const end = link?.children[4].children[1].textContent
+	const kind = kindFromHeading(link?.parentElement?.previousElementSibling?.textContent)
 
-	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end }
+	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end, kind }
 }
 
 function outputClashingMeetings(peopleClashingMeetings: PeopleClashingMeetings, kind: string, combined: CombinedNames): string {
