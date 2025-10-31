@@ -78,18 +78,18 @@ type Meeting = {
 	tag: number
 	kind: Kind
 	calendarTitle: string
-	ourTitle: string
+	title: string
 	calendarDay: Day
-	ourDay: Day
+	day: Day
 	calendarStart: Temporal.PlainDateTime
-	ourStart: Temporal.PlainDateTime
+	start: Temporal.PlainDateTime
 	calendarEnd: Temporal.PlainDateTime
-	ourEnd: Temporal.PlainDateTime
+	end: Temporal.PlainDateTime
 	match: MatchStatus
 	calendarRoom: string
-	ourNames: string[]
+	names: string[]
 	calendarUrl: string
-	ourIssueUrl: string
+	issueUrl: string
 	alternatives: string[]
 	notes?: string
 }
@@ -131,8 +131,8 @@ class ClashingMeetingSet {
 	}
 }
 
-function sortMeetings(meetings: Meeting[]) {
-	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
+function sort(activities: (Meeting | Gap)[]) {
+	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start))
 }
 
 function dayThings<T extends Meeting | Gap>(): Record<Day, T[]> {
@@ -151,8 +151,8 @@ function errorOut(...args: any) {
 
 function sameActualMeeting(meeting: Meeting, other: Meeting) {
 	return meeting.calendarUrl === other.calendarUrl &&
-		meeting.ourStart.equals(other.ourStart) &&
-		meeting.ourEnd.equals(other.ourEnd)
+		meeting.start.equals(other.start) &&
+		meeting.end.equals(other.end)
 }
 
 function people(names: string[], combined: CombinedNames): string {
@@ -280,18 +280,18 @@ function isMeeting(p: Partial<Meeting>): p is Meeting {
 	return !!p.tag &&
 		!!p.kind &&
 		!!p.calendarTitle &&
-		!!p.ourTitle &&
+		!!p.title &&
 		!!p.calendarDay &&
-		!!p.ourDay &&
+		!!p.day &&
 		!!p.calendarStart &&
-		!!p.ourStart &&
+		!!p.start &&
 		!!p.calendarEnd &&
-		!!p.ourEnd &&
+		!!p.end &&
 		!!p.match &&
 		!!p.calendarRoom &&
-		!!p.ourNames &&
+		!!p.names &&
 		!!p.calendarUrl &&
-		!!p.ourIssueUrl &&
+		!!p.issueUrl &&
 		!!p.alternatives
 }
 
@@ -311,18 +311,18 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 		tag: meetingCounter++,
 		kind: calendarInfo.kind,
 		calendarTitle: calendarInfo?.title,
-		ourTitle: issue.title,
+		title: issue.title,
 		calendarDay: calendarInfo?.day,
-		ourDay: bodyInfo.day,
+		day: bodyInfo.day,
 		calendarStart,
-		ourStart: bodyInfo.start,
+		start: bodyInfo.start,
 		calendarEnd,
-		ourEnd: bodyInfo.end,
+		end: bodyInfo.end,
 		match,
 		calendarRoom: calendarInfo?.room,
-		ourNames: names,
+		names: names,
 		calendarUrl: bodyInfo.calendarUrl,
-		ourIssueUrl: issue.url,
+		issueUrl: issue.url,
 		alternatives: [], // NOTE: Only known after computing clashes and free times
 		notes: bodyInfo.notes
 	}
@@ -338,7 +338,7 @@ function timeMatch(calendarStart: Temporal.PlainDateTime, calendarEnd: Temporal.
 }
 
 // TODO: Is there a way to destructure and pass as arguments immediately?
-function timeMatchMeeting({ calendarStart, calendarEnd, ourStart, ourEnd }: Meeting): MatchStatus {
+function timeMatchMeeting({ calendarStart, calendarEnd, start: ourStart, end: ourEnd }: Meeting): MatchStatus {
 	return timeMatch(calendarStart, calendarEnd, ourStart, ourEnd)
 }
 
@@ -346,9 +346,9 @@ function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] 
 	let out: string[] = []
 
 	for (const name in pdg) {
-		if (m.ourNames.includes(name)) continue
+		if (m.names.includes(name)) continue
 		if (!alts.includes(name)) continue
-		for (const gap of pdg[name][m.ourDay]) {
+		for (const gap of pdg[name][m.day]) {
 			if (isMeetingInGap(m, gap)) {
 				out.push(name)
 			}
@@ -361,10 +361,10 @@ function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] 
 // FIXME: Take gaps into account; maybe DRY with below
 function isMeetingInGap(m: Meeting, g: Gap): boolean {
 	const buffer = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
-	return Temporal.PlainDateTime.compare(m.ourStart, g.start) >= 0
-		  && Temporal.PlainDateTime.compare(m.ourStart, g.end)   <= 0
-		  && Temporal.PlainDateTime.compare(m.ourEnd,   g.start) >= 0
-	    && Temporal.PlainDateTime.compare(m.ourEnd,   g.end)   <= 0
+	return Temporal.PlainDateTime.compare(m.start, g.start) >= 0
+		  && Temporal.PlainDateTime.compare(m.start, g.end)   <= 0
+		  && Temporal.PlainDateTime.compare(m.end,   g.start) >= 0
+	    && Temporal.PlainDateTime.compare(m.end,   g.end)   <= 0
 }
 
 function clashes(a: Meeting, b: Meeting): ClashStatus {
@@ -372,21 +372,21 @@ function clashes(a: Meeting, b: Meeting): ClashStatus {
 
 	// TODO: Check if can be removed
 	const meetings = [a, b]
-	sortMeetings(meetings)
+	sort(meetings)
 	const [m, o] = meetings
 
-	if (Temporal.PlainDateTime.compare(m.ourStart, o.ourStart) >= 0
-	 && Temporal.PlainDateTime.compare(m.ourStart, o.ourEnd)   <= 0) return Clash.DEFO
+	if (Temporal.PlainDateTime.compare(m.start, o.start) >= 0
+	 && Temporal.PlainDateTime.compare(m.start, o.end)   <= 0) return Clash.DEFO
 
 	// NOTE: Allow first meeting that ends as the second one starts to be a near clash
-	if (Temporal.PlainDateTime.compare(m.ourEnd,   o.ourStart) >  0
-	 && Temporal.PlainDateTime.compare(m.ourEnd,   o.ourEnd)   <= 0) return Clash.DEFO
+	if (Temporal.PlainDateTime.compare(m.end,   o.start) >  0
+	 && Temporal.PlainDateTime.compare(m.end,   o.end)   <= 0) return Clash.DEFO
 
-	if (Temporal.PlainDateTime.compare(m.ourStart, o.ourStart.subtract(gap)) >= 0
-	 && Temporal.PlainDateTime.compare(m.ourStart, o.ourEnd.add(gap))        <= 0) return Clash.NEAR
+	if (Temporal.PlainDateTime.compare(m.start, o.start.subtract(gap)) >= 0
+	 && Temporal.PlainDateTime.compare(m.start, o.end.add(gap))        <= 0) return Clash.NEAR
 
-	if (Temporal.PlainDateTime.compare(m.ourEnd,   o.ourStart.subtract(gap)) >= 0
-	 && Temporal.PlainDateTime.compare(m.ourEnd,   o.ourEnd.add(gap))        <= 0) return Clash.NEAR
+	if (Temporal.PlainDateTime.compare(m.end,   o.start.subtract(gap)) >= 0
+	 && Temporal.PlainDateTime.compare(m.end,   o.end.add(gap))        <= 0) return Clash.NEAR
 
 	return Clash.NONE
 }
@@ -395,27 +395,27 @@ function display(meeting: Meeting, combined: CombinedNames) {
 	console.log('      tag:', meeting.tag)
 	console.log('     kind:', meeting.kind)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
-	console.log(`Our title: ${meeting.ourTitle}`)
-	console.log('     Repo:', repo(meeting.ourIssueUrl))
+	console.log(`Our title: ${meeting.title}`)
+	console.log('     Repo:', repo(meeting.issueUrl))
 
 	if (meeting.match === Match.NOPE) {
 		console.log('  Cal day:', pretty(meeting.calendarDay))
-		console.log('  Our day:', pretty(meeting.ourDay))
+		console.log('  Our day:', pretty(meeting.day))
 	} else {
-		console.log('      Day:', pretty(meeting.ourDay))
+		console.log('      Day:', pretty(meeting.day))
 	}
 
 	if (meeting.match !== Match.EXACT) {
 		console.log(' Cal time:', dtf(meeting.calendarStart), '-', dtf(meeting.calendarEnd))
-		console.log(' Our time:', dtf(meeting.ourStart), '-', dtf(meeting.ourEnd))
+		console.log(' Our time:', dtf(meeting.start), '-', dtf(meeting.end))
 	} else {
-		console.log('     Time:', dtf(meeting.ourStart), '-', dtf(meeting.ourEnd))
+		console.log('     Time:', dtf(meeting.start), '-', dtf(meeting.end))
 	}
 
 	console.log('     Room:', meeting.calendarRoom)
-	console.log('   People:', people(meeting.ourNames, combined))
+	console.log('   People:', people(meeting.names, combined))
 	console.log('  Cal URL:', meeting.calendarUrl)
-	console.log('  Our URL:', meeting.ourIssueUrl)
+	console.log('  Our URL:', meeting.issueUrl)
 	console.log('    Match:', pretty(meeting.match))
 
 	console.log('     alts:', prettyAlts(meeting))
@@ -427,25 +427,32 @@ function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
 	console.log('      tag:', meeting.tag)
 	console.log('     kind:', meeting.kind)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
-	console.log(`Our title: ${meeting.ourTitle}`)
-	console.log('     Repo:', meeting.ourIssueUrl ? repo(meeting.ourIssueUrl) : null)
+	console.log(`Our title: ${meeting.title}`)
+	console.log('     Repo:', meeting.issueUrl ? repo(meeting.issueUrl) : null)
 
 	console.log('  Cal day:', meeting.calendarDay ? pretty(meeting.calendarDay) : null)
-	console.log('  Our day:', meeting.ourDay ? pretty(meeting.ourDay) : null)
+	console.log('  Our day:', meeting.day ? pretty(meeting.day) : null)
 
 	console.log(' Cal time:', meeting.calendarStart ? dtf(meeting.calendarStart) : '??', '-', meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??')
-	console.log(' Our time:', meeting.ourStart ? dtf(meeting.ourStart) : '??', '-', meeting.ourEnd ? dtf(meeting.ourEnd) : '??')
+	console.log(' Our time:', meeting.start ? dtf(meeting.start) : '??', '-', meeting.end ? dtf(meeting.end) : '??')
 
 	console.log('     Room:', meeting.calendarRoom ?? null)
-	console.log('   People:', meeting.ourNames ? people(meeting.ourNames, combined) : null)
+	console.log('   People:', meeting.names ? people(meeting.names, combined) : null)
 	console.log('  Cal URL:', meeting.calendarUrl)
-	console.log('  Our URL:', meeting.ourIssueUrl)
+	console.log('  Our URL:', meeting.issueUrl)
 }
 
-function outputFreeTimes(pdg: PersonDayGaps) {
+function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: CombinedNames) {
 	let html = `<table>
 		<thead>
-			<tr><th>Person</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th></tr>
+			<tr>
+				<th><p>Person</p></th>
+				<th><p>Monday</p></th>
+				<th><p>Tuesday</p></th>
+				<th><p>Wednesday</p></th>
+				<th><p>Thursday</p></th>
+				<th><p>Friday</p></th>
+			</tr>
 		</thead>
 		<tbody>`
 
@@ -456,10 +463,21 @@ function outputFreeTimes(pdg: PersonDayGaps) {
 		for (const day in pdg[name]) {
 			console.log(pretty(day))
 			html += '<td><ul>'
-			for (const gap of pdg[name][day]) {
-				console.log('Free from', dtf(gap.start), 'to', dtf(gap.end))
-				html += `<li>${dtf(gap.start)} to ${dtf(gap.end)}</li>`
+
+			// FIXME: Why can't TS help here?
+			const activities = pdm[name][day].concat(pdg[name][day])
+			sort(activities)
+
+			for (const activity of activities) {
+				if ('kind' in activity) {
+					console.log(activity.calendarTitle)
+					html += listItemFor(activity, false, combined, name)
+				} else {
+					console.log('Free from', dtf(activity.start), 'to', dtf(activity.end))
+					html += `<li><p>Free ${dtf(activity.start)} to ${dtf(activity.end)}</p></li>`
+				}
 			}
+
 			html += '</ul></td>'
 			console.log()
 		}
@@ -474,9 +492,9 @@ function outputFreeTimes(pdg: PersonDayGaps) {
 function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): string {
 	let out = ''
 	out += `<dt>Room</dt><dd>${meeting.calendarRoom ?? '???'}</dd>`
-	out += `<dt>People</dt><dd>${meeting.ourNames ? people(meeting.ourNames, combined) : '???'}</dd>`
+	out += `<dt>People</dt><dd>${meeting.names ? people(meeting.names, combined) : '???'}</dd>`
 	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl}">${meeting.calendarUrl}</a></dd>`
-	out += `<dt>Our issue URL</dt><dd><a href="${meeting.ourIssueUrl}">${meeting.ourIssueUrl}</a></dd>`
+	out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl}">${meeting.issueUrl}</a></dd>`
 	return out
 }
 
@@ -490,25 +508,25 @@ function htmlNotes(meeting: Partial<Meeting>): string {
 	return ''
 }
 
-function listItemFor(meeting: Meeting, includeDay: boolean, combined: CombinedNames): string {
-	return `<li><p>${oneLinerFor(meeting, includeDay,combined)}</p></li>`
+function listItemFor(meeting: Meeting, includeDay: boolean, combined: CombinedNames, skipName?: string): string {
+	return `<li><p>${oneLinerFor(meeting, includeDay, combined, skipName)}</p></li>`
 }
 
 function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNames, skipName?: string): string {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
 	const names = skipName
-		? meeting.ourNames.filter(name => name !== skipName)
-		: meeting.ourNames
+		? meeting.names.filter(name => name !== skipName)
+		: meeting.names
 	const nameHtml = names.length
 		? `, <i>${people(names, combned)}</i>`
 		: ''
-	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>, ${meeting.calendarRoom}${nameHtml}`
+	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
 }
 
 function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
 	return `<div id="${meeting.tag}" class="meeting ${condition}">
 		<h4>${meeting.calendarTitle}</h4>
-		<p><i>${meeting.ourTitle}</i> <span>from: ${meeting.ourIssueUrl ? repo(meeting.ourIssueUrl) : null}</span></p>
+		<p><i>${meeting.title}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : null}</span></p>
 		<dl>
 			<dt>Kind</dt><dd>${meeting.kind}</dd>`
 }
@@ -516,18 +534,18 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string
 function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	let out = ''
 
-	if (meeting.match === Match.NOPE && meeting.ourDay !== meeting.calendarDay) {
+	if (meeting.match === Match.NOPE && meeting.day !== meeting.calendarDay) {
 		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
-		out += `<dt>Our day</dt><dd>${pretty(meeting.ourDay)}</dd>`
+		out += `<dt>Our day</dt><dd>${pretty(meeting.day)}</dd>`
 	} else {
 		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
 	if (meeting.match !== Match.EXACT) {
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
-		out += `<dt>Our time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
+		out += `<dt>Our time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
 	} else {
-		out += `<dt>Time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
+		out += `<dt>Time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
 	}
 
 	out += htmlPeopleAndUrls(meeting, combined)
@@ -547,10 +565,10 @@ function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedName
 	let out = htmlMeetingHeader(meeting, 'invalid')
 
 	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
-	out += `<dt>Our day</dt><dd>${meeting.ourDay ? pretty(meeting.ourDay) : '???'}</dd>`
+	out += `<dt>Our day</dt><dd>${meeting.day ? pretty(meeting.day) : '???'}</dd>`
 
 	out += `<dt>Calendar time</dt><dd>${meeting.calendarStart ? dtf(meeting.calendarStart) : '??'}&ndash;${meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??'}</dd>`
-	out += `<dt>Our time</dt><dd>${meeting.ourStart ? dtf(meeting.ourStart) : '??'}&ndash;${meeting.ourEnd ? dtf(meeting.ourEnd) : '??'}</dd>`
+	out += `<dt>Our time</dt><dd>${meeting.start ? dtf(meeting.start) : '??'}&ndash;${meeting.end ? dtf(meeting.end) : '??'}</dd>`
 
 	out += htmlPeopleAndUrls(meeting, combined)
 
@@ -790,7 +808,7 @@ function main() {
 	// FIXME: Figure out TypeScript/yargs workaround, and DRY with the below
 	if (!!args.combine) {
 		if (args.combine.length === 2 && args.combine.every(value => typeof value === 'string')) {
-			args.combine = [args.combine]
+			args.combine = [args.combine] as unknown as string[]
 		}
 		if (!args.combine!.every(value =>
 			Array.isArray(value) && value.length === 2)) {
@@ -815,7 +833,7 @@ function main() {
 		// FIXME: Figure out TypeScript/yargs workaround, and DRY with the above
 		if (!!args.repo) {
 			if (args.repo.length <= 2 && args.repo.every(value => typeof value === 'string')) {
-				args.repo = [args.repo]
+				args.repo = [args.repo] as unknown as string[]
 			}
 			if (!args.repo!.every(value =>
 				Array.isArray(value) && value.length > 0 && value.length < 3)) {
@@ -851,8 +869,8 @@ function main() {
 		}
 	}
 
-	sortMeetings(meetings)
-	sortMeetings(movedMeetings)
+	sort(meetings)
+	sort(movedMeetings)
 
 	const haveInvalidMeetings = invalidMeetings.length > 0
 	const haveMeetings = meetings.length > 0
@@ -863,18 +881,18 @@ function main() {
 	const repoMeetings: RepoMeetings = {}
 
 	for (const meeting of meetings) {
-		for (const name of meeting.ourNames) {
+		for (const name of meeting.names) {
 			const equiv = equivalents[name] ?? name
 
 			if (personDayMeetings[equiv] === undefined) {
 				personDayMeetings[equiv] = dayThings()
 			}
-			objPushValue(personDayMeetings[equiv], meeting.ourDay, meeting)
+			objPushValue(personDayMeetings[equiv], meeting.day, meeting)
 
 			personDayGaps[equiv] = dayThings()
 		}
 		objPushValue(dayMeetings, meeting.calendarDay, meeting)
-		objPushValue(repoMeetings, repo(meeting.ourIssueUrl), meeting)
+		objPushValue(repoMeetings, repo(meeting.issueUrl), meeting)
 	}
 
 	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
@@ -912,14 +930,14 @@ function main() {
 				}
 
 				// Detecting gaps between meetings
-				if (Temporal.PlainDateTime.compare(meeting.ourStart, endOfLastMeeting) > 0) {
+				if (Temporal.PlainDateTime.compare(meeting.start, endOfLastMeeting) > 0) {
 					personDayGaps[name][day].push({
 						start: endOfLastMeeting,
-						end: meeting.ourStart
+						end: meeting.start
 					})
 				}
-				if (Temporal.PlainDateTime.compare(meeting.ourEnd, endOfLastMeeting) > 0) {
-					endOfLastMeeting = meeting.ourEnd
+				if (Temporal.PlainDateTime.compare(meeting.end, endOfLastMeeting) > 0) {
+					endOfLastMeeting = meeting.end
 				}
 			}
 
@@ -967,8 +985,8 @@ function main() {
 	const nearlyClashingId = 'nearly-clashing'
 	const nearlyClashingHeading = 'Nearly clashing meetings'
 
-	const freeId = 'free-times'
-	const freeHeading = 'Free times'
+	const timetableId = 'timetable'
+	const timetableHeading = 'Timetable'
 
 	const htmlStart = `<!DOCTYPE html>
 		<head>
@@ -992,7 +1010,7 @@ function main() {
 					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
 					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
 					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
-					<li><p>${sectionLink(true, freeId, freeHeading)}</p></li>
+					<li><p>${sectionLink(true, timetableId, timetableHeading)}</p></li>
 				</ul>
 			</nav>
 			<main>`
@@ -1029,8 +1047,8 @@ function main() {
 				planned
 			: '') +
 		(true
-			? `<h2 id="${freeId}">${freeHeading}</h2>` +
-				outputFreeTimes(personDayGaps)
+			? `<h2 id="${timetableId}">${timetableHeading}</h2>` +
+				outputTimetable(personDayMeetings, personDayGaps, equivalents)
 			: '') +
 		htmlEnd
 
