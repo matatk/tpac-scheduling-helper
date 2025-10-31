@@ -129,6 +129,10 @@ class ClashingMeetingSet {
 	}
 }
 
+function sortMeetings(meetings: Meeting[]) {
+	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
+}
+
 function dayThings<T extends Meeting | Gap>(): Record<Day, T[]> {
 	return Object.fromEntries(Days.map(day => [day, []])) as Record<Day, T[]>
 }
@@ -338,6 +342,7 @@ function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] 
 	return out
 }
 
+// FIXME: Take gaps into account; maybe DRY with below
 function isMeetingInGap(m: Meeting, g: Gap): boolean {
 	const buffer = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
 	return Temporal.PlainDateTime.compare(m.ourStart, g.start) >= 0
@@ -346,14 +351,19 @@ function isMeetingInGap(m: Meeting, g: Gap): boolean {
 	    && Temporal.PlainDateTime.compare(m.ourEnd,   g.end)   <= 0
 }
 
-// FIXME: DRY
-function clashes(m: Meeting, o: Meeting): ClashStatus {
+function clashes(a: Meeting, b: Meeting): ClashStatus {
 	const gap = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
+
+	// TODO: Check if can be removed
+	const meetings = [a, b]
+	sortMeetings(meetings)
+	const [m, o] = meetings
 
 	if (Temporal.PlainDateTime.compare(m.ourStart, o.ourStart) >= 0
 	 && Temporal.PlainDateTime.compare(m.ourStart, o.ourEnd)   <= 0) return Clash.DEFO
 
-	if (Temporal.PlainDateTime.compare(m.ourEnd,   o.ourStart) >= 0
+	// NOTE: Allow first meeting that ends as the second one starts to be a near clash
+	if (Temporal.PlainDateTime.compare(m.ourEnd,   o.ourStart) >  0
 	 && Temporal.PlainDateTime.compare(m.ourEnd,   o.ourEnd)   <= 0) return Clash.DEFO
 
 	if (Temporal.PlainDateTime.compare(m.ourStart, o.ourStart.subtract(gap)) >= 0
@@ -823,8 +833,8 @@ function main() {
 		}
 	}
 
-	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
-	movedMeetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
+	sortMeetings(meetings)
+	sortMeetings(movedMeetings)
 
 	const haveInvalidMeetings = invalidMeetings.length > 0
 	const haveMeetings = meetings.length > 0
