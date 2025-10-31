@@ -71,6 +71,7 @@ type CalendarMeetingInfo = {
 	day: Day
 	start: string
 	end: string
+	room: string
 	kind: Kind
 }
 
@@ -85,6 +86,7 @@ type Meeting = {
 	ourStart: Temporal.PlainDateTime
 	calendarEnd: Temporal.PlainDateTime
 	ourEnd: Temporal.PlainDateTime
+	calendarRoom: string,
 	ourNames: string[]
 	calendarUrl: string
 	ourIssueUrl: string
@@ -285,12 +287,14 @@ function isMeeting(p: Partial<Meeting>): p is Meeting {
 		!!p.ourStart &&
 		!!p.calendarEnd &&
 		!!p.ourEnd &&
+		!!p.calendarRoom &&
 		!!p.ourNames &&
 		!!p.calendarUrl &&
 		!!p.ourIssueUrl &&
 		!!p.alternatives
 }
 
+// TODO: Returning partial here stops checking (e.g. didn't know room was missing when field was added)
 function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meeting> {
 	const bodyInfo = extractBodyInfo(issue.body)
 	const names = issue.assignees.map(assignee => assignee.login)
@@ -309,6 +313,7 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 		calendarEnd: (calendarInfo.day && calendarInfo.end) ?
 			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.end) : undefined,
 		ourEnd: bodyInfo.end,
+		calendarRoom: calendarInfo?.room,
 		ourNames: names,
 		calendarUrl: bodyInfo.calendarUrl,
 		ourIssueUrl: issue.url,
@@ -398,6 +403,7 @@ function display(meeting: Meeting, combined: CombinedNames) {
 		console.log('     Time:', dtf(meeting.ourStart), '-', dtf(meeting.ourEnd))
 	}
 
+	console.log('     Room:', meeting.calendarRoom)
 	console.log('   People:', people(meeting.ourNames, combined))
 	console.log('  Cal URL:', meeting.calendarUrl)
 	console.log('  Our URL:', meeting.ourIssueUrl)
@@ -407,6 +413,7 @@ function display(meeting: Meeting, combined: CombinedNames) {
 }
 
 // TODO: DRY with above? Would this ever need to display notes, or alternatives?
+// FIXME: TS not detecting that calendarRoom could be missing
 function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
 	console.log('      tag:', meeting.tag)
 	console.log('     kind:', meeting.kind)
@@ -420,6 +427,7 @@ function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
 	console.log(' Cal time:', meeting.calendarStart ? dtf(meeting.calendarStart) : '??', '-', meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??')
 	console.log(' Our time:', meeting.ourStart ? dtf(meeting.ourStart) : '??', '-', meeting.ourEnd ? dtf(meeting.ourEnd) : '??')
 
+	console.log('     Room:', meeting.calendarRoom ?? null)
 	console.log('   People:', meeting.ourNames ? people(meeting.ourNames, combined) : null)
 	console.log('  Cal URL:', meeting.calendarUrl)
 	console.log('  Our URL:', meeting.ourIssueUrl)
@@ -456,7 +464,8 @@ function outputFreeTimes(pdg: PersonDayGaps) {
 
 function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): string {
 	let out = ''
-	out += `<dt>People</dt><dd>${meeting.ourNames ? people(meeting.ourNames, combined) : null}</dd>`
+	out += `<dt>Room</dt><dd>${meeting.calendarRoom ?? '???'}</dd>`
+	out += `<dt>People</dt><dd>${meeting.ourNames ? people(meeting.ourNames, combined) : '???'}</dd>`
 	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl}">${meeting.calendarUrl}</a></dd>`
 	out += `<dt>Our issue URL</dt><dd><a href="${meeting.ourIssueUrl}">${meeting.ourIssueUrl}</a></dd>`
 	return out
@@ -484,7 +493,7 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNam
 	const nameHtml = names.length
 		? `, <i>${people(names, combned)}</i>`
 		: ''
-	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>${nameHtml}`
+	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</b>, ${meeting.calendarRoom}${nameHtml}`
 }
 
 function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
@@ -577,9 +586,10 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	const rawDay = parentSection?.id
 	const start = link?.children[4].children[0].textContent
 	const end = link?.children[4].children[1].textContent
+	const room = link?.children[2].textContent
 	const kind = kindFromHeading(link?.parentElement?.previousElementSibling?.textContent)
 
-	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end, kind }
+	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end, room, kind }
 }
 
 function prettyAlts(m: Meeting): string {
