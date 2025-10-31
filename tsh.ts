@@ -213,7 +213,7 @@ function dtf(pdt: Temporal.PlainDateTime): string {
 }
 
 function isDay(candidate: any): candidate is Day {
-	return Days.indexOf(candidate) > -1
+	return Days.includes(candidate)
 }
 
 function pretty(thing: string): string {
@@ -298,11 +298,11 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 		ourTitle: issue.title,
 		calendarDay: calendarInfo?.day,
 		ourDay: bodyInfo.day,
-		calendarStart: (bodyInfo.startOfDay && calendarInfo.start) ?
-			timeStringToPlainDateTime(bodyInfo.startOfDay, calendarInfo.start) : undefined,
+		calendarStart: (calendarInfo.day && calendarInfo.start) ?
+			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.start) : undefined,
 		ourStart: bodyInfo.start,
-		calendarEnd: (bodyInfo.startOfDay && calendarInfo.end) ?
-			timeStringToPlainDateTime(bodyInfo.startOfDay, calendarInfo.end) : undefined,
+		calendarEnd: (calendarInfo.day && calendarInfo.end) ?
+			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.end) : undefined,
 		ourEnd: bodyInfo.end,
 		ourNames: names,
 		calendarUrl: bodyInfo.calendarUrl,
@@ -644,7 +644,8 @@ function getArgs() {
 					}
 				}
 				return flat
-			}
+			},
+			default: []  // TODO: TS doesn't catch the possible error relating to this (alts.includes())
 		})
 		.option('combine', {
 			alias: 'c',
