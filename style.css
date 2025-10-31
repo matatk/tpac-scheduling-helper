@@ -99,11 +99,17 @@ pre {
 table {
 	margin: auto;
 	border-collapse: collapse;
+	position: absolute;
+	left: 0;
+	right: 0;
 }
 
 th {
 	font-weight: bold;
-	padding: 1em;
+}
+
+th, td {
+	padding-inline: 0.5em;
 }
 
 thead tr:first-child {
@@ -117,4 +123,9 @@ tr {
 
 tr:last-child {
 	border-block-end: var(--toprule) solid currentColor;
+}
+
+table ul {
+	list-style-type: none;
+	padding: 0;
 }
