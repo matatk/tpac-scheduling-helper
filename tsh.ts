@@ -457,7 +457,7 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 		<tbody>`
 
 	for (const name in pdg) {
-		console.log(`// Free times for ${name}`)
+		console.log(`// Timetable for ${name}`)
 		html += `<tr><th scope="row">${name}</th>`
 		console.log()
 		for (const day in pdg[name]) {
@@ -482,7 +482,6 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 			console.log()
 		}
 		html += '</tr>'
-		console.log()
 		console.log()
 	}
 
@@ -623,7 +622,7 @@ function prettyAlts(m: Meeting): string {
 }
 
 function htmlPossibleAlts(m: Meeting): string {
-	return `<p>Possible alternative attendees: ${prettyAlts(m)}</p></li>`
+	return `<p>Possible alternative attendees: ${prettyAlts(m)}</p>`
 }
 
 function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
@@ -633,20 +632,19 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 		console.log()
 		if (pcm[name].size) {
 			html += `<section data-person="${name}">`
-			html += `<h3>${kind} clashing meetings for ${name}</h3><ul>`
+			html += `<h3>${kind} clashing meetings for ${name}</h3><ul class="clashing">`
 			for (const [m, o] of pcm[name]) {
 				display(m, combined)
 				console.log('...and...')
 				display(o, combined)
 				html += `<li>
-					<p>${oneLinerFor(m, true, combined, name)}<br>${htmlPossibleAlts(m)}</p>
+					<p>${oneLinerFor(m, true, combined, name)}</p>${htmlPossibleAlts(m)}
 					<p>and</p>
-					<p>${oneLinerFor(o, true, combined, name)}<br>${htmlPossibleAlts(o)}</p></li>`
+					<p>${oneLinerFor(o, true, combined, name)}</p>${htmlPossibleAlts(o)}</li>`
 				console.log()
 			}
 			html += '</ul>'
 			html += '</section>'
-			console.log()
 			console.log()
 		}
 	}
@@ -670,8 +668,22 @@ function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: C
 			html += '</ul>'
 		}
 		console.log()
+	}
+	return html
+}
+
+function outputUnassignedMeetings(unassigned: Meeting[], combined: CombinedNames): string {
+	let html = ''
+	console.log(`// Meetings without any assignees`)
+	console.log()
+	html += '<ul>'
+	for (const meeting of unassigned) {
+		display(meeting, combined)
+		html += `<li><p>${oneLinerFor(meeting, true, combined)}</p></li>`
 		console.log()
 	}
+	html += '</ul>'
+	console.log()
 	return html
 }
 
@@ -762,7 +774,6 @@ function outputInvalidMeetings(ims: Partial<Meeting>[], equivalents: CombinedNam
 	})
 
 	console.log()
-	console.log()
 	return html
 }
 
@@ -796,7 +807,6 @@ function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showD
 		html += htmlForMeeting(meeting, equivalents)
 	}
 
-	console.log()
 	console.log()
 	return html
 }
@@ -855,6 +865,7 @@ function main() {
 	const meetings: Meeting[] = []
 	const invalidMeetings: Partial<Meeting>[] = []
 	const movedMeetings: Meeting[] = []
+	const unassignedMeetings: Meeting[] = []
 
 	for (const issue of issues) {
 		const meeting = meetingFromIssue(doc, issue)
@@ -864,6 +875,9 @@ function main() {
 			} else {
 				meetings.push(meeting)
 			}
+			if (meeting.names.length === 0) {
+				unassignedMeetings.push(meeting)
+			}
 		} else {
 			invalidMeetings.push(meeting)
 		}
@@ -871,6 +885,7 @@ function main() {
 
 	sort(meetings)
 	sort(movedMeetings)
+	sort(unassignedMeetings) // FIXME: needed?
 
 	const haveInvalidMeetings = invalidMeetings.length > 0
 	const haveMeetings = meetings.length > 0
@@ -976,14 +991,17 @@ function main() {
 	const movedId = 'moved-meetings'
 	const movedHeading = 'Moved meetings'
 
-	const plannedId = 'planned'
-	const plannedHeading = 'Planned meetings'
-
 	const clashingId = 'clashing'
 	const clashingHeading = 'Clashing meetings'
 
 	const nearlyClashingId = 'nearly-clashing'
 	const nearlyClashingHeading = 'Nearly clashing meetings'
+
+	const unassignedId = 'unassigned'
+	const unassignedHeading = 'Meetings without assignees'
+
+	const plannedId = 'planned'
+	const plannedHeading = 'Planned meetings'
 
 	const timetableId = 'timetable'
 	const timetableHeading = 'Timetable'
@@ -1009,6 +1027,7 @@ function main() {
 					<li><p>${sectionLink(havePossibleDuplicates, possibleDuplicatesId, possibleDuplicatesHeading)}</p></li>
 					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
 					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
+					<li><p>${sectionLink(unassignedMeetings.length > 0, unassignedId, unassignedHeading)}</p></li>
 					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
 					<li><p>${sectionLink(true, timetableId, timetableHeading)}</p></li>
 				</ul>
@@ -1039,6 +1058,10 @@ function main() {
 		(haveNearlyClashing
 			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>` +
 				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
+			: '') +
+		(unassignedMeetings.length > 0
+			? `<h2 id="${unassignedId}">${unassignedHeading}</h2>` +
+				outputUnassignedMeetings(unassignedMeetings, equivalents)
 			: '') +
 		(haveMeetings
 			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +

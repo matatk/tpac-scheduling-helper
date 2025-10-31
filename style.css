@@ -34,6 +34,10 @@ select {
 	font-size: inherit;
 }
 
+ul.clashing li {
+	border-block-end: var(--totally-rules) solid currentColor;
+}
+
 .meeting {
 	border-radius: 0.5em;
 	padding: 0 1em;
