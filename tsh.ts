@@ -499,10 +499,7 @@ function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): 
 
 function htmlNotes(meeting: Partial<Meeting>): string {
 	if (meeting.notes) {
-		return `<details>
-			<summary>Meeting notes</summary>
-			<pre>${meeting.notes}</pre>
-		</details>`
+		return `<pre>${meeting.notes}</pre>`
 	}
 	return ''
 }
