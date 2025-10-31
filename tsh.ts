@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// TODO: Compute timeMatch() (and other stuff?) for meetings once only
 import * as fs from 'fs'
 import { spawnSync } from 'child_process'
 
@@ -392,7 +393,7 @@ function display(meeting: Meeting, combined: CombinedNames) {
 	console.log('  Our URL:', meeting.ourIssueUrl)
 	console.log('    Match:', timeMatch(meeting))
 
-	console.log('     alts:', meeting.alternatives.join(', '))
+	console.log('     alts:', prettyAlts(meeting))
 }
 
 // TODO: DRY with above? Would this ever need to display notes, or alternatives?
@@ -504,7 +505,7 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 
 	out += htmlPeopleAndUrls(meeting, combined)
 	out += `<dt>Time match</dt><dd>${timeMatch(meeting)}</dd>`
-	out += `<dt>Alternatives</dt><dd>${meeting.alternatives.join(', ')}</dd>`
+	out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
 	out += '</dl>'
 
 	out += htmlNotes(meeting)
@@ -571,8 +572,12 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end, kind }
 }
 
-function possibleAlts(m: Meeting): string {
-	return `<p>Possible alternative attendees: ${m.alternatives.length ? m.alternatives.join(', ') : '(none)'}</p></li>`
+function prettyAlts(m: Meeting): string {
+	return m.alternatives.length ? m.alternatives.join(', ') : '(none)'
+}
+
+function htmlPossibleAlts(m: Meeting): string {
+	return `<p>Possible alternative attendees: ${prettyAlts(m)}</p></li>`
 }
 
 function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
@@ -588,9 +593,9 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 				console.log('...and...')
 				display(o, combined)
 				html += `<li>
-					<p>${oneLinerFor(m, true, combined, name)}<br>${possibleAlts(m)}</p>
+					<p>${oneLinerFor(m, true, combined, name)}<br>${htmlPossibleAlts(m)}</p>
 					<p>and</p>
-					<p>${oneLinerFor(o, true, combined, name)}<br>${possibleAlts(o)}</p></li>`
+					<p>${oneLinerFor(o, true, combined, name)}<br>${htmlPossibleAlts(o)}</p></li>`
 				console.log()
 			}
 			html += '</ul>'
@@ -728,14 +733,14 @@ function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): stri
 	return html
 }
 
-function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames): string {
+function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showDay: boolean): string {
 	console.log('// Planned meetings')
 	console.log()
 	let html = ''
 	let currentDay: Day | null = null
 
 	for (const meeting of pms) {
-		if (meeting.calendarDay !== currentDay) {
+		if (showDay && meeting.calendarDay !== currentDay) {
 			currentDay = meeting.calendarDay
 			console.log(pretty(meeting.calendarDay))
 			html += `<h3>${pretty(meeting.calendarDay)}</h3>`
@@ -803,17 +808,23 @@ function main() {
 
 	const meetings: Meeting[] = []
 	const invalidMeetings: Partial<Meeting>[] = []
+	const movedMeetings: Meeting[] = []
 
 	for (const issue of issues) {
 		const meeting = meetingFromIssue(doc, issue)
 		if (isMeeting(meeting)) {
-			meetings.push(meeting)
+			if (timeMatch(meeting) === Match.NOPE) {
+				movedMeetings.push(meeting)
+			} else {
+				meetings.push(meeting)
+			}
 		} else {
 			invalidMeetings.push(meeting)
 		}
 	}
 
 	meetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
+	movedMeetings.sort((a, b) => Temporal.PlainDateTime.compare(a.ourStart, b.ourStart))
 
 	const haveInvalidMeetings = invalidMeetings.length > 0
 	const haveMeetings = meetings.length > 0
@@ -839,7 +850,7 @@ function main() {
 	}
 
 	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
-	const planned = outputPlannedMeetings(meetings, equivalents)
+	const planned = outputPlannedMeetings(meetings, equivalents, true)
 
 	const peopleDefinitelyClashingMeetings: PersonClashingMeetings = {}
 	const peopleNearlyClashingMeetings: PersonClashingMeetings = {}
@@ -916,6 +927,9 @@ function main() {
 	const possibleDuplicatesId = 'possible-duplicates'
 	const possibleDuplicatesHeading = 'Possible duplicate meetings'
 
+	const movedId = 'moved-meetings'
+	const movedHeading = 'Moved meetings'
+
 	const plannedId = 'planned'
 	const plannedHeading = 'Planned meetings'
 
@@ -945,6 +959,7 @@ function main() {
 				${peopleSelector(personDayMeetings)}
 				<ul>
 					<li><p>${sectionLink(haveInvalidMeetings, invalidId, invalidHeading)}</p></li>
+					<li><p>${sectionLink(movedMeetings.length > 0, movedId, movedHeading)}</p></li>
 					<li><p>${sectionLink(havePossibleDuplicates, possibleDuplicatesId, possibleDuplicatesHeading)}</p></li>
 					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
 					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
@@ -960,6 +975,10 @@ function main() {
 			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
 				'<p>A meeting would be flagged as invalid if it was cancelled, and thus deleted from the schedule page.</p>' +
 				outputInvalidMeetings(invalidMeetings, equivalents)
+			: '') +
+		(movedMeetings.length > 0
+			? `<h2 id="${movedId}">${movedHeading}</h2>` +
+				outputPlannedMeetings(movedMeetings, equivalents, false)
 			: '') +
 		(havePossibleDuplicates
 			? `<h2 id="${possibleDuplicatesId}">${possibleDuplicatesHeading}</h2>` +
