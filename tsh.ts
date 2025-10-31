@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// TODO: Compute timeMatch() (and other stuff?) for meetings once only
 import * as fs from 'fs'
 import { spawnSync } from 'child_process'
 
@@ -86,7 +85,8 @@ type Meeting = {
 	ourStart: Temporal.PlainDateTime
 	calendarEnd: Temporal.PlainDateTime
 	ourEnd: Temporal.PlainDateTime
-	calendarRoom: string,
+	match: MatchStatus
+	calendarRoom: string
 	ourNames: string[]
 	calendarUrl: string
 	ourIssueUrl: string
@@ -287,6 +287,7 @@ function isMeeting(p: Partial<Meeting>): p is Meeting {
 		!!p.ourStart &&
 		!!p.calendarEnd &&
 		!!p.ourEnd &&
+		!!p.match &&
 		!!p.calendarRoom &&
 		!!p.ourNames &&
 		!!p.calendarUrl &&
@@ -300,6 +301,12 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 	const names = issue.assignees.map(assignee => assignee.login)
 	const calendarInfo = calendarMeetingInfo(doc, bodyInfo.calendarUrl ?? '')
 
+	const calendarStart = (calendarInfo.day && calendarInfo.start) ?
+			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.start) : undefined
+	const calendarEnd = (calendarInfo.day && calendarInfo.end) ?
+			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.end) : undefined
+	const match = timeMatch(calendarStart, calendarEnd, bodyInfo.start, bodyInfo.end)
+
 	return {
 		tag: meetingCounter++,
 		kind: calendarInfo.kind,
@@ -307,12 +314,11 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 		ourTitle: issue.title,
 		calendarDay: calendarInfo?.day,
 		ourDay: bodyInfo.day,
-		calendarStart: (calendarInfo.day && calendarInfo.start) ?
-			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.start) : undefined,
+		calendarStart,
 		ourStart: bodyInfo.start,
-		calendarEnd: (calendarInfo.day && calendarInfo.end) ?
-			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.end) : undefined,
+		calendarEnd,
 		ourEnd: bodyInfo.end,
+		match,
 		calendarRoom: calendarInfo?.room,
 		ourNames: names,
 		calendarUrl: bodyInfo.calendarUrl,
@@ -322,13 +328,18 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 	}
 }
 
-function timeMatch(m: Meeting): MatchStatus {
-	const start = Temporal.PlainDateTime.compare(m.calendarStart, m.ourStart)
-	const end = Temporal.PlainDateTime.compare(m.calendarEnd, m.ourEnd)
+function timeMatch(calendarStart: Temporal.PlainDateTime, calendarEnd: Temporal.PlainDateTime, ourStart: Temporal.PlainDateTime, ourEnd: Temporal.PlainDateTime): MatchStatus {
+	const start = Temporal.PlainDateTime.compare(calendarStart, ourStart)
+	const end = Temporal.PlainDateTime.compare(calendarEnd, ourEnd)
 
 	if (start === 0 && end === 0) return Match.EXACT
 	if (start <= 0 && end >= 0) return Match.SUBSET
 	return Match.NOPE
+}
+
+// TODO: Is there a way to destructure and pass as arguments immediately?
+function timeMatchMeeting({ calendarStart, calendarEnd, ourStart, ourEnd }: Meeting): MatchStatus {
+	return timeMatch(calendarStart, calendarEnd, ourStart, ourEnd)
 }
 
 function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] {
@@ -381,22 +392,20 @@ function clashes(a: Meeting, b: Meeting): ClashStatus {
 }
 
 function display(meeting: Meeting, combined: CombinedNames) {
-	const match = timeMatch(meeting)
-
 	console.log('      tag:', meeting.tag)
 	console.log('     kind:', meeting.kind)
 	console.log(`Cal title: ${meeting.calendarTitle}`)
 	console.log(`Our title: ${meeting.ourTitle}`)
 	console.log('     Repo:', repo(meeting.ourIssueUrl))
 
-	if (match === Match.NOPE) {
+	if (meeting.match === Match.NOPE) {
 		console.log('  Cal day:', pretty(meeting.calendarDay))
 		console.log('  Our day:', pretty(meeting.ourDay))
 	} else {
 		console.log('      Day:', pretty(meeting.ourDay))
 	}
 
-	if (match !== Match.EXACT) {
+	if (meeting.match !== Match.EXACT) {
 		console.log(' Cal time:', dtf(meeting.calendarStart), '-', dtf(meeting.calendarEnd))
 		console.log(' Our time:', dtf(meeting.ourStart), '-', dtf(meeting.ourEnd))
 	} else {
@@ -407,7 +416,7 @@ function display(meeting: Meeting, combined: CombinedNames) {
 	console.log('   People:', people(meeting.ourNames, combined))
 	console.log('  Cal URL:', meeting.calendarUrl)
 	console.log('  Our URL:', meeting.ourIssueUrl)
-	console.log('    Match:', timeMatch(meeting))
+	console.log('    Match:', pretty(meeting.match))
 
 	console.log('     alts:', prettyAlts(meeting))
 }
@@ -505,17 +514,16 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string
 }
 
 function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
-	const match = timeMatch(meeting)
 	let out = ''
 
-	if (match === Match.NOPE && meeting.ourDay !== meeting.calendarDay) {
+	if (meeting.match === Match.NOPE && meeting.ourDay !== meeting.calendarDay) {
 		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 		out += `<dt>Our day</dt><dd>${pretty(meeting.ourDay)}</dd>`
 	} else {
 		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
-	if (match !== Match.EXACT) {
+	if (meeting.match !== Match.EXACT) {
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 		out += `<dt>Our time</dt><dd>${dtf(meeting.ourStart)}&ndash;${dtf(meeting.ourEnd)}</dd>`
 	} else {
@@ -523,7 +531,7 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	}
 
 	out += htmlPeopleAndUrls(meeting, combined)
-	out += `<dt>Time match</dt><dd>${timeMatch(meeting)}</dd>`
+	out += `<dt>Time match</dt><dd>${pretty(meeting.match)}</dd>`
 	out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
 	out += '</dl>'
 
@@ -532,7 +540,7 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	out += '</div>'
 
 	// TODO: Make the mapping of condition to string more type-y?
-	return htmlMeetingHeader(meeting, match) + out
+	return htmlMeetingHeader(meeting, meeting.match) + out
 }
 
 function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames): string {
@@ -833,7 +841,7 @@ function main() {
 	for (const issue of issues) {
 		const meeting = meetingFromIssue(doc, issue)
 		if (isMeeting(meeting)) {
-			if (timeMatch(meeting) === Match.NOPE) {
+			if (timeMatchMeeting(meeting) === Match.NOPE) {
 				movedMeetings.push(meeting)
 			} else {
 				meetings.push(meeting)
