@@ -47,16 +47,17 @@ To run it on _this_ repo (which contains some example TPAC planning issues), usi
 
 The issue title will be displayed in the output, but less prominently than the W3C Calendar meeting title. This ensures everyone has a consistent name for the meeting. But you can use the issue title to emphasise, for example, the part of the meeting you want to attend.
 
-The assignees are the people you would like to attend the meeting.
+The issue's assignees are the people you would like to attend the meeting. Making assignments is the recommended way to link people to the meeting, but GitHub has a 10-person assignee limit: if needed, you can supply a list of extra assignees in the body text of the first comment, per the format described below. If you don't assign anyone (maybe because of clashes) the issue will still be processed, and will be flagged as needing people assigned to it.
 
 The body of the first comment on the issue needs to match the following format:
 
 ```
 <W3C Calendar URL for the meeting>
-<Day name>
-<Start time> - <End time>
+<day name (monday, tuesday, wednesday, thursday, friday)>
+<start time (24-hour, HH:MM)> - <end time (24-hour, HH:MM)>
+[optional list of GitHub usernames of additional attendees (only 10 people can be assigned to a GitHub issue)]
 
-[optional further lines contain your notes on the meeting]
+[optional further lines containing your notes on the meeting]
 ```
 
 You need to specify the day _and_ time in the issue so that the script can detect when a session has moved.
@@ -66,6 +67,8 @@ The time should be in 24-hour format, with a colon (i.e. 'HH:MM').
 The bit between the start and end times can be either a plain hyphen or an en-dash and the spaces are optional.
 
 As noted above, you can specify that you only want to attend part of a meeting, but you'll need to check the agenda manually.
+
+When specifying additional attendees via the body text of the comment, the at signs are optional.
 
 ## Advanced usage
 
@@ -94,6 +97,12 @@ For example, passing `--combine TopSecretAnna PublicAnna` will instruct the tool
 When a name is overridden, this is noted in the tool's output.
 
 The look-up is only done once: attempting to override a name that was already overriding another name will not produce the desired results. However, it is possible to override multiple names with one other name.
+
+### Specifying whom to consider as alternative meeting attendees
+
+The tool will provide you with options for other people who may be free at the time of clashing meetings. The free/busy info is based only on other TPAC meetings people are assigned to, so will not be complete.
+
+If you're doing scheduling for a small group, but are referring to meeting issues across multiple repos, you may want to limit the suggestions for alternative people to attend meetings. You can do this via the `--alternative` option, which takes a list of GitHub usernames.
 
 ## Future plans
 

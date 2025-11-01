@@ -62,6 +62,7 @@ type GhBodyInfo = {
 	startOfDay: Temporal.PlainDateTime
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
+	extraPeople: string[]  // Hack around 10-assignee limit
 	notes?: string
 }
 
@@ -271,9 +272,15 @@ function extractBodyInfo(body: String): Partial<GhBodyInfo> {
 	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
 	const start = startAndEnd?.[0]
 	const end = startAndEnd?.[1]
-	bodyLines.shift()  // TODO make an error condition for this if not present?
+	const extraPeopleOrBlank = bodyLines.shift()
 
-	return { calendarUrl, day, startOfDay, start, end, notes: bodyLines.join('\n') }
+	const extraPeople = extraPeopleOrBlank?.length > 0
+		? extraPeopleOrBlank.replaceAll(',', '').replaceAll('@', '').split(/\s/)
+		: []
+
+	if (extraPeopleOrBlank?.length > 0) bodyLines.shift()  // Blank line after metadata
+
+	return { calendarUrl, day, startOfDay, start, end, extraPeople, notes: bodyLines.join('\n') }
 }
 
 function isMeeting(p: Partial<Meeting>): p is Meeting {
@@ -320,7 +327,7 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 		end: bodyInfo.end,
 		match,
 		calendarRoom: calendarInfo?.room,
-		names: names,
+		names: Array.from(new Set([...names, ...bodyInfo.extraPeople])),
 		calendarUrl: bodyInfo.calendarUrl,
 		issueUrl: issue.url,
 		alternatives: [], // NOTE: Only known after computing clashes and free times
@@ -347,7 +354,7 @@ function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] 
 
 	for (const name in pdg) {
 		if (m.names.includes(name)) continue
-		if (!alts.includes(name)) continue
+		if (alts.length > 0 && !alts.includes(name)) continue
 		for (const gap of pdg[name][m.day]) {
 			if (isMeetingInGap(m, gap)) {
 				out.push(name)
@@ -696,7 +703,7 @@ function getArgs() {
 			alias: 'a',
 			type: 'string',
 			array: true,
-			description: 'People who you want to consider as possible alternatives to attend meetings, in the event of clashes.',
+			description: 'People who you want to consider as possible alternatives to attend meetings, in the event of clashes. By default, all people referenced by issues will be considered as possible alternative meeting attendees.',
 			coerce: alts => {
 				const flat = []
 				for (const alt of alts) {
@@ -707,8 +714,7 @@ function getArgs() {
 					}
 				}
 				return flat
-			},
-			default: []  // TODO: TS doesn't catch the possible error relating to this (alts.includes())
+			}
 		})
 		.option('combine', {
 			alias: 'c',
@@ -758,6 +764,10 @@ function getArgs() {
 		})
 		.conflicts('query-result', 'save-result')
 		.strict()
+		.check(args => {
+			if (!args.alternatives) args.alternatives = []
+			return true
+		})
 		.parseSync()
 }
 
