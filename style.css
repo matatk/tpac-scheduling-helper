@@ -8,6 +8,7 @@
 	--nope: red;
 	--invalid: red;
 	--highlight: blue;
+	--cancelled: gray;
 
 	--toprule: 0.15em;
 	--midrule: calc(0.5 * var(--toprule));
@@ -58,6 +59,10 @@ ul.clashing li {
 
 .meeting.invalid {
 	border: 4px dashed var(--invalid);
+}
+
+.meeting.cancelled {
+	border: 4px solid var(--cancelled);
 }
 
 :target.meeting {

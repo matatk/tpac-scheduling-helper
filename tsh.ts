@@ -22,7 +22,7 @@ type RepoDuplicateMeetings = Map<string, Meeting[][]>
 const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
 type Day = typeof Days[number]
 
-const Kinds = ['group', 'breakout', 'invalid', 'cancelled'] as const
+const Kinds = ['group', 'breakout', 'cancelled'] as const
 type Kind = typeof Kinds[number]
 
 type WorkingDay = {
@@ -466,7 +466,10 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 		</thead>
 		<tbody>`
 
-	for (const [name, dayGaps] of pdg) {
+	const sortedNames = [...pdg.keys()].sort()
+
+	for (const name of sortedNames) {
+		const dayGaps = pdg.get(name)!
 		console.log(`// Timetable for ${name}`)
 		html += `<tr><th scope="row">${name}</th>`
 		console.log()
@@ -570,8 +573,8 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	return htmlMeetingHeader(meeting, meeting.match) + out
 }
 
-function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames): string {
-	let out = htmlMeetingHeader(meeting, 'invalid')
+function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames, klass: string): string {
+	let out = htmlMeetingHeader(meeting, klass)
 
 	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
 	out += `<dt>Our day</dt><dd>${meeting.day ? pretty(meeting.day) : '???'}</dd>`
@@ -612,9 +615,9 @@ function workingDayFrom(day: Day): WorkingDay {
 	}
 }
 
-function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetingInfo> | null {
+function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetingInfo> {
 	const link = doc.querySelector(`a[href="${url}"]`)
-	if (!link) return null
+	if (!link) return { kind: 'cancelled' }
 
 	const parentSection = (link?.parentElement?.parentElement?.parentElement)
 	const rawDay = parentSection?.id
@@ -776,7 +779,7 @@ function getArgs() {
 		.parseSync()
 }
 
-function outputInvalidMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames): string {
+function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, klass: string): string {
 	if (ims.length === 0) return ''
 	let html = ''
 
@@ -784,7 +787,7 @@ function outputInvalidMeetings(ims: Partial<Meeting>[], equivalents: CombinedNam
 	console.log()
 	ims.forEach(p => {
 		displayPartial(p, equivalents)
-		html += htmlForPartialMeeting(p, equivalents)
+		html += htmlForPartialMeeting(p, equivalents, klass)
 		console.log()
 	})
 
@@ -878,6 +881,7 @@ function main() {
 	console.log()
 
 	const meetings: Meeting[] = []
+	const cancelledMeetings: Partial<Meeting>[] = []
 	const invalidMeetings: Partial<Meeting>[] = []
 	const movedMeetings: Meeting[] = []
 	const unassignedMeetings: Meeting[] = []
@@ -893,6 +897,8 @@ function main() {
 			if (meeting.names.length === 0) {
 				unassignedMeetings.push(meeting)
 			}
+		} else if (meeting?.kind === 'cancelled') {
+			cancelledMeetings.push(meeting)
 		} else {
 			invalidMeetings.push(meeting)
 		}
@@ -901,9 +907,6 @@ function main() {
 	sort(meetings)
 	sort(movedMeetings)
 	sort(unassignedMeetings)
-
-	const haveInvalidMeetings = invalidMeetings.length > 0
-	const haveMeetings = meetings.length > 0
 
 	const dayMeetings: DayMeetings = dayThings<Meeting>()
 	const personDayMeetings: PersonDayMeetings = new Map()
@@ -997,9 +1000,12 @@ function main() {
 		}
 	}
 
+	const haveInvalid = invalidMeetings.length > 0
+	const haveMeetings = meetings.length > 0
 	const haveMoved = movedMeetings.length > 0
 	const havePossibleDuplicates = repoPossibleDuplicates.size > 0
 	const haveUnassigned = unassignedMeetings.length > 0
+	const haveCancelled = cancelledMeetings.length > 0
 
 	const invalidId = 'invalid'
 	const invalidHeading = 'Invalid meeting entries'
@@ -1022,6 +1028,9 @@ function main() {
 	const plannedId = 'planned'
 	const plannedHeading = 'Planned meetings'
 
+	const cancelledId = 'cancelled'
+	const cancelledHeading = 'Cancelled meetings'
+
 	const timetableId = 'timetable'
 	const timetableHeading = 'Timetable'
 
@@ -1041,13 +1050,14 @@ function main() {
 				<h2>Navigation and filtering</h2>
 				${peopleSelector(personDayMeetings)}
 				<ul>
-					<li><p>${sectionLink(haveInvalidMeetings, invalidId, invalidHeading)}</p></li>
+					<li><p>${sectionLink(haveInvalid, invalidId, invalidHeading)}</p></li>
 					<li><p>${sectionLink(haveMoved, movedId, movedHeading)}</p></li>
 					<li><p>${sectionLink(havePossibleDuplicates, possibleDuplicatesId, possibleDuplicatesHeading)}</p></li>
 					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
 					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
 					<li><p>${sectionLink(haveUnassigned, unassignedId, unassignedHeading)}</p></li>
 					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
+					<li><p>${sectionLink(haveCancelled, cancelledId, cancelledHeading)}</p></li>
 					<li><p>${sectionLink(true, timetableId, timetableHeading)}</p></li>
 				</ul>
 			</nav>
@@ -1055,10 +1065,9 @@ function main() {
 	const htmlEnd = '</main></body></html>'
 
 	const html = htmlStart +
-		(haveInvalidMeetings
+		(haveInvalid
 			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
-				'<p>A meeting would be flagged as invalid if it was cancelled, and thus deleted from the schedule page.</p>' +
-				outputInvalidMeetings(invalidMeetings, equivalents)
+				outputUnprocessableMeetings(invalidMeetings, equivalents, 'invalid')
 			: '') +
 		(haveMoved
 			? `<h2 id="${movedId}">${movedHeading}</h2>` +
@@ -1087,6 +1096,10 @@ function main() {
 				'<h3>Summary</h3>' +
 				plannedLinks +
 				planned
+			: '') +
+		(haveCancelled
+			? `<h2 id="${cancelledId}">${cancelledHeading}</h2>` +
+				outputUnprocessableMeetings(cancelledMeetings, equivalents, 'cancelled')
 			: '') +
 		(true
 			? `<h2 id="${timetableId}">${timetableHeading}</h2>` +
