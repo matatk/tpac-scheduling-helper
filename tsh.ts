@@ -526,7 +526,7 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNam
 	const names = skipName
 		? meeting.names.filter(name => name !== skipName)
 		: meeting.names
-	const nameHtml = names.length
+	const nameHtml = names.length > 0
 		? `, <i>${people(names, combned)}</i>`
 		: ''
 	return `<a href="#${meeting.tag}">${meeting.calendarTitle}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
@@ -629,11 +629,12 @@ function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetin
 }
 
 function prettyAlts(m: Meeting): string {
-	return m.alternatives.length ? m.alternatives.join(', ') : '(none)'
+	return m.alternatives.length > 0 ? m.alternatives.join(', ') : '(none)'
 }
 
-function htmlPossibleAlts(m: Meeting): string {
-	return `<p>Possible alternative attendees: ${prettyAlts(m)}</p>`
+function htmlAlternativesOrNot(m: Meeting): string {
+	if (m.alternatives.length > 0) return `<p><strong>Possible alternative attendees:</strong> ${prettyAlts(m)}</p>`
+	return ''
 }
 
 function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
@@ -649,9 +650,9 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 				console.log('...and...')
 				display(o, combined)
 				html += `<li>
-					<p>${oneLinerFor(m, true, combined, name)}</p>${htmlPossibleAlts(m)}
+					<p>${oneLinerFor(m, true, combined, name)}</p>${htmlAlternativesOrNot(m)}
 					<p>and</p>
-					<p>${oneLinerFor(o, true, combined, name)}</p>${htmlPossibleAlts(o)}</li>`
+					<p>${oneLinerFor(o, true, combined, name)}</p>${htmlAlternativesOrNot(o)}</li>`
 				console.log()
 			}
 			html += '</ul>'
