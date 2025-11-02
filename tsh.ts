@@ -309,10 +309,12 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 	const calendarInfo = calendarMeetingInfo(doc, bodyInfo.calendarUrl ?? '')
 
 	const calendarStart = (calendarInfo.day && calendarInfo.start) ?
-			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.start) : undefined
+		timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.start) : undefined
 	const calendarEnd = (calendarInfo.day && calendarInfo.end) ?
-			timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.end) : undefined
-	const match = timeMatch(calendarStart, calendarEnd, bodyInfo.start, bodyInfo.end)
+		timeStringToPlainDateTime(startOfDayFrom(calendarInfo.day), calendarInfo.end) : undefined
+	const match = (calendarStart && calendarEnd && bodyInfo.start && bodyInfo.end)
+		? timeMatch(calendarStart, calendarEnd, bodyInfo.start, bodyInfo.end)
+		: undefined
 
 	return {
 		tag: meetingCounter++,
@@ -342,11 +344,6 @@ function timeMatch(calendarStart: Temporal.PlainDateTime, calendarEnd: Temporal.
 	if (start === 0 && end === 0) return Match.EXACT
 	if (start <= 0 && end >= 0) return Match.SUBSET
 	return Match.NOPE
-}
-
-// TODO: Is there a way to destructure and pass as arguments immediately?
-function timeMatchMeeting({ calendarStart, calendarEnd, start: ourStart, end: ourEnd }: Meeting): MatchStatus {
-	return timeMatch(calendarStart, calendarEnd, ourStart, ourEnd)
 }
 
 function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] {
@@ -612,14 +609,15 @@ function workingDayFrom(day: string): WorkingDay {
 
 function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetingInfo> {
 	const link = doc.querySelector(`a[href="${url}"]`)
+
 	const parentSection = (link?.parentElement?.parentElement?.parentElement)
+	const rawDay = parentSection?.id
 
 	const title = link?.firstElementChild?.textContent
-	const rawDay = parentSection?.id
 	const start = link?.children[4].children[0].textContent
 	const end = link?.children[4].children[1].textContent
 	const room = link?.children[2].textContent
-	const kind = kindFromHeading(link?.parentElement?.previousElementSibling?.textContent)
+	const kind = link?.classList.contains('breakout') ? 'breakout' : 'group'
 
 	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end, room, kind }
 }
@@ -880,7 +878,7 @@ function main() {
 	for (const issue of issues) {
 		const meeting = meetingFromIssue(doc, issue)
 		if (isMeeting(meeting)) {
-			if (timeMatchMeeting(meeting) === Match.NOPE) {
+			if (meeting.match === Match.NOPE) {
 				movedMeetings.push(meeting)
 			} else {
 				meetings.push(meeting)
