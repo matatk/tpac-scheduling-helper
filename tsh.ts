@@ -797,13 +797,13 @@ function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: Combi
 
 function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): string {
 	let html = '<ul>'
-	Object.entries(dms).forEach(([day, meetings]) => {
+	for (const [day, meetings] of dms) {
 		html += `<li>${pretty(day)}<ul>`
 		for (const meeting of meetings) {
 			html += listItemFor(meeting, false, equivalents)
 		}
 		html += `</ul></i>`
-	})
+	}
 	html += '</ul>'
 	return html
 }
