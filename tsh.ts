@@ -767,7 +767,7 @@ function getArgs() {
 		.option('style', {
 			alias: 's',
 			type: 'string',
-			description: 'Name of CSS file you provide to style the HTML output',
+			description: 'Name of CSS file for styling the HTML output. This will be written directly into the output HTML.',
 			default: 'style.css'
 		})
 		.conflicts('query-result', 'save-result')
@@ -1039,7 +1039,7 @@ function main() {
 			<meta charset="utf-8">
 			<title>${myName}</title>
 			<meta name="color-scheme" content="dark light" />
-			<link rel="stylesheet" href="${args.style}">
+			<style>${fs.readFileSync(args.style, 'utf-8')}</style>
 			${peopleSelectorStyle(personDayMeetings)}
 		</head>
 		<body>
