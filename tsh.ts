@@ -610,8 +610,8 @@ function startOfDayFrom(candidate: Day): Temporal.PlainDateTime {
 function workingDayFrom(day: Day): WorkingDay {
 	const midnight = startOfDayFrom(day)
 	return {
-		start: midnight.add(Temporal.Duration.from({ hours: 9 })),
-		end: midnight.add(Temporal.Duration.from({ hours: 18 })),
+		start: midnight.add(Temporal.Duration.from({ hours: 8, minutes: 30 })),
+		end: midnight.add(Temporal.Duration.from({ hours: 22, minutes: 30 })),
 	}
 }
 
