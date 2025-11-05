@@ -39,7 +39,7 @@ To run it on _this_ repo (which contains some example TPAC planning issues), usi
 ```sh
 ./tsh.ts \
 	--repo matatk/tpac-scheduling-helper \
-	--meetings schedule-meetings.html \
+	--meetings schedule.html \
 	--output tpac.html
 ```
 

@@ -1,5 +1,5 @@
 node_modules/
 package-lock.json
 query-result.json
-schedule-*.html
+schedule.html
 tpac.html
