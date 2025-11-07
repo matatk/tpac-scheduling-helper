@@ -471,7 +471,7 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 	for (const name of sortedNames) {
 		const dayGaps = pdg.get(name)!
 		console.log(`// Timetable for ${name}`)
-		html += `<tr><th scope="row">${name}</th>`
+		html += `<tr id="timetable-${name}"><th scope="row">${name}</th>`
 		console.log()
 		for (const [day, gaps] of dayGaps) {
 			console.log(pretty(day))
