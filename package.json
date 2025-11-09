@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "//build": "Needs a -r argument pointing to a GH repository. E.g. `npm run build -- -r matatk/tpac-scheduling-helper`",
-    "build": "tsx tsh.ts -m tpac.html -o schedule.html"
+    "//build": "Needs -o and -r arguments. E.g. `npm run build -- -o schedule.html -r matatk/tpac-scheduling-helper`",
+    "build": "tsx tsh.ts -m tpac.html"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
