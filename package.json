@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24"
+  },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
     "jsdom": "^27.0.0",
