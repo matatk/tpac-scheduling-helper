@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "//build": "Needs -o and -r arguments. E.g. `npm run build -- -o schedule.html -r matatk/tpac-scheduling-helper`",
+    "build": "tsx tsh.ts -m tpac.html"
+  },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
     "jsdom": "^27.0.0",
@@ -11,6 +15,7 @@
   "devDependencies": {
     "@types/jsdom": "^27.0.0",
     "@types/node": "^24.7.0",
-    "@types/yargs": "^17.0.33"
+    "@types/yargs": "^17.0.33",
+    "tsx": "^4.20.6"
   }
 }
