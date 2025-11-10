@@ -253,8 +253,8 @@ function getIssues(repo: string, label: string): GhIssue[] {
 	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999']
 	console.log(cmd, args.join(' '))
 	const child = spawnSync(cmd, args)
-	if (child.error) {
-		errorOut('Error reported by gh:', child.stderr)
+	if (child.error || child.status !== 0) {
+		errorOut('Error reported by gh:', child.stderr.toString())
 	}
 	try {
 		return JSON.parse(child.stdout.toString())
