@@ -19,13 +19,13 @@ type PersonDayGaps = Map<string, DayGaps>
 type RepoMeetings = Map<string, Meeting[]>
 type RepoDuplicateMeetings = Map<string, Meeting[][]>
 
-const Days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+const Days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday' ] as const
 type Day = typeof Days[number]
 
-const Kinds = ['group', 'breakout', 'cancelled'] as const
+const Kinds = [ 'group', 'breakout', 'cancelled' ] as const
 type Kind = typeof Kinds[number]
 
-type WorkingDay = {
+interface WorkingDay {
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
 }
@@ -33,32 +33,32 @@ type WorkingDay = {
 const Match = {
 	EXACT: 'exact',
 	SUBSET: 'subset',
-	NOPE: 'nope'
+	NOPE: 'nope',
 } as const
 type MatchStatus = typeof Match[keyof typeof Match]
 
 const Clash = {
 	NONE: 'No clash',
 	DEFO: 'CLASHES!',
-	NEAR: 'Mind Gap'
+	NEAR: 'Mind Gap',
 } as const
 type ClashStatus = typeof Clash[keyof typeof Clash]
 
-type GhIssue = {
+interface GhIssue {
 	assignees: GhAssignee[]
 	body: string
 	title: string
 	url: string
 }
 
-type GhAssignee = {
+interface GhAssignee {
 	id: string
 	login: string
 	name: string
 	databaseId: number
 }
 
-type GhBodyInfo = {
+interface GhBodyInfo {
 	calendarUrl: string
 	day: Day
 	startOfDay: Temporal.PlainDateTime
@@ -68,7 +68,7 @@ type GhBodyInfo = {
 	notes?: string
 }
 
-type CalendarMeetingInfo = {
+interface CalendarMeetingInfo {
 	title: string
 	day: Day
 	start: string
@@ -77,7 +77,7 @@ type CalendarMeetingInfo = {
 	kind: Kind
 }
 
-type Meeting = {
+interface Meeting {
 	tag: number
 	kind: Kind
 	calendarTitle: string
@@ -97,7 +97,7 @@ type Meeting = {
 	notes?: string
 }
 
-type Gap = {
+interface Gap {
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
 }
@@ -115,12 +115,12 @@ class ClashingMeetingsSet {
 	}
 
 	add(a: Meeting, b: Meeting) {
-		const sorted = [a, b].sort((a, b) => a.tag - b.tag)
+		const sorted = [ a, b ].sort((a, b) => a.tag - b.tag)
 		if (sorted.length !== 2) throw('Sorted pair is not of length 2:' + sorted)
 		const ident = sorted.map(m => m.tag).join(':')
 		if (!this.#idPairs.has(ident)) {
 			this.#idPairs.add(ident)
-			this.#meetingPairs.push([sorted[0], sorted[1]])
+			this.#meetingPairs.push([ sorted[0], sorted[1] ])
 		}
 	}
 
@@ -138,7 +138,7 @@ function sort(activities: (Meeting | Gap)[]) {
 }
 
 function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
-	return new Map(Days.map(day => [day, []]))
+	return new Map(Days.map(day => [ day, [] ]))
 }
 
 function errorOut(...args: any) {
@@ -198,7 +198,7 @@ function addDayMeeting(map: Map<Day, Meeting[]>, day: Day, meeting: Meeting) {
 	if (map.has(day)) {
 		map.get(day)!.push(meeting)
 	} else {
-		map.set(day, [meeting])
+		map.set(day, [ meeting ])
 	}
 }
 
@@ -206,7 +206,7 @@ function addRepoMeeting(map: Map<string, Meeting[]>, repo: string, meeting: Meet
 	if (map.has(repo)) {
 		map.get(repo)!.push(meeting)
 	} else {
-		map.set(repo, [meeting])
+		map.set(repo, [ meeting ])
 	}
 }
 
@@ -220,7 +220,7 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 function dtf(pdt: Temporal.PlainDateTime): string {
 	return pdt.toLocaleString(undefined, {
 		hour: '2-digit',
-		minute: '2-digit'
+		minute: '2-digit',
 	})
 }
 
@@ -233,14 +233,14 @@ function pretty(thing: string): string {
 }
 
 function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
-	const [hours, minutes] = time.split(':').map(s => parseInt(s))
+	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
 	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
 }
 
 function getSchedule(path: string) {
 	if (!fs.existsSync(path)) {
 		console.log('Downloading schedule...')
-		const child = spawnSync('curl', [SCHEDULE_URL, '-o', path])
+		const child = spawnSync('curl', [ SCHEDULE_URL, '-o', path ])
 		if (child.error) {
 			throw (child.stderr)
 		}
@@ -250,7 +250,7 @@ function getSchedule(path: string) {
 
 function getIssues(repo: string, label: string): GhIssue[] {
 	const cmd = 'gh'
-	const args = ['--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999']
+	const args = [ '--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999' ]
 	console.log(cmd, args.join(' '))
 	const child = spawnSync(cmd, args)
 	if (child.error || child.status !== 0) {
@@ -264,7 +264,7 @@ function getIssues(repo: string, label: string): GhIssue[] {
 	return []  // NOTE: Here for TypeScript
 }
 
-function extractBodyInfo(body: String): Partial<GhBodyInfo> {
+function extractBodyInfo(body: string): Partial<GhBodyInfo> {
 	// GitHub API line-ending weirdness: https://github.com/actions/runner/issues/1462#issuecomment-2676329157
 	const bodyLines = body.split(/\r?\n/)
 
@@ -336,11 +336,11 @@ function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meet
 		end: bodyInfo.end,
 		match,
 		calendarRoom: calendarInfo?.room,
-		names: Array.from(new Set([...names, ...bodyInfo.extraPeople])),
+		names: Array.from(new Set([ ...names, ...bodyInfo.extraPeople ])),
 		calendarUrl: bodyInfo.calendarUrl,
 		issueUrl: issue.url,
 		alternatives: [], // NOTE: Only known after computing clashes and free times
-		notes: bodyInfo.notes
+		notes: bodyInfo.notes,
 	}
 }
 
@@ -354,7 +354,7 @@ function timeMatch(calendarStart: Temporal.PlainDateTime, calendarEnd: Temporal.
 }
 
 function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] {
-	let out: string[] = []
+	const out: string[] = []
 
 	for (const name of pdg.keys()) {
 		if (m.names.includes(name)) continue
@@ -382,9 +382,9 @@ function clashes(a: Meeting, b: Meeting): ClashStatus {
 	const gap = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
 
 	// TODO: Check if can be removed
-	const meetings = [a, b]
+	const meetings = [ a, b ]
 	sort(meetings)
-	const [m, o] = meetings
+	const [ m, o ] = meetings
 
 	if (Temporal.PlainDateTime.compare(m.start, o.start) >= 0
 	 && Temporal.PlainDateTime.compare(m.start, o.end)   <= 0) return Clash.DEFO
@@ -466,19 +466,19 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 		</thead>
 		<tbody>`
 
-	const sortedNames = [...pdg.keys()].sort()
+	const sortedNames = [ ...pdg.keys() ].sort()
 
 	for (const name of sortedNames) {
 		const dayGaps = pdg.get(name)!
 		console.log(`// Timetable for ${name}`)
 		html += `<tr id="timetable-${name}"><th scope="row">${name}</th>`
 		console.log()
-		for (const [day, gaps] of dayGaps) {
+		for (const [ day, gaps ] of dayGaps) {
 			console.log(pretty(day))
 			html += '<td><ul>'
 
 			// TODO: TS can't infer type
-			const activities: (Meeting | Gap)[] = [...pdm.get(name)?.get(day) ?? [], ...gaps]
+			const activities: (Meeting | Gap)[] = [ ...pdm.get(name)?.get(day) ?? [], ...gaps ]
 			sort(activities)
 
 			for (const activity of activities) {
@@ -620,7 +620,7 @@ function workingDayFrom(day: Day): WorkingDay {
 	}
 }
 
-function calendarMeetingInfo(doc: Document, url: String): Partial<CalendarMeetingInfo> {
+function calendarMeetingInfo(doc: Document, url: string): Partial<CalendarMeetingInfo> {
 	const link = doc.querySelector(`a[href="${url}"]`)
 	if (!link) return { kind: 'cancelled' }
 
@@ -647,13 +647,13 @@ function htmlAlternativesOrNot(m: Meeting): string {
 
 function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
 	let html = ''
-	for (const [name, cms] of pcm) {
+	for (const [ name, cms ] of pcm) {
 		console.log(`// ${kind} clashing meetings for ${name}`)
 		console.log()
 		if (cms.size) {
 			html += `<section data-person="${name}">`
 			html += `<h3>${kind} clashing meetings for ${name}</h3><ul class="clashing">`
-			for (const [m, o] of cms) {
+			for (const [ m, o ] of cms) {
 				display(m, combined)
 				console.log('...and...')
 				display(o, combined)
@@ -673,11 +673,11 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 
 function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: CombinedNames): string {
 	let html = ''
-	for (const [repo, possibleDupes] of rdm) {
+	for (const [ repo, possibleDupes ] of rdm) {
 		console.log(`// Possible duplicate meetings in ${repo}`)
 		console.log()
 		html += `<h3>Possibly duplicate meetings in ${repo}</h3>`
-		for (const [index, meetings] of possibleDupes.entries()) {
+		for (const [ index, meetings ] of possibleDupes.entries()) {
 			html += `<p>Set of possible duplicates ${index + 1}:</p>`
 			html += '<ul>'
 			for (const m of meetings) {
@@ -694,7 +694,7 @@ function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: C
 
 function outputUnassignedMeetings(unassigned: Meeting[], combined: CombinedNames): string {
 	let html = ''
-	console.log(`// Meetings without any assignees`)
+	console.log('// Meetings without any assignees')
 	console.log()
 	html += '<ul>'
 	for (const meeting of unassigned) {
@@ -709,7 +709,7 @@ function outputUnassignedMeetings(unassigned: Meeting[], combined: CombinedNames
 
 function getArgs() {
 	return yargs(hideBin(process.argv)).parserConfiguration({
-		'flatten-duplicate-arrays': false
+		'flatten-duplicate-arrays': false,
 	})
 		.usage(myName + '\n\nUsage: $0 [options]')
 		.option('alternatives', {
@@ -727,53 +727,53 @@ function getArgs() {
 					}
 				}
 				return flat
-			}
+			},
 		})
 		.option('combine', {
 			alias: 'c',
 			type: 'string',
 			array: true,
-			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.'
+			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.',
 		})
 		.option('label', {
 			alias: 'l',
 			type: 'string',
 			description: 'GitHub issue label to indicate TPAC meeting-planning issues',
-			default: 'tpac'
+			default: 'tpac',
 		})
 		.option('meetings', {
 			alias: 'm',
 			type: 'string',
-			description: "Path to local meetings schedule HTML file - it will be downloaded if it doesn't exist",
-			required: true
+			description: 'Path to local meetings schedule HTML file - it will be downloaded if it doesn\'t exist',
+			required: true,
 		})
 		.option('output', {
 			alias: 'o',
 			type: 'string',
 			description: 'Path to HTML file to create with info on all the meetings',
-			required: true
+			required: true,
 		})
 		.option('query-result', {
 			alias: 'q',
 			type: 'string',
-			description: 'Path to local JSON file that contains issues returned in GitHub API query responses (for debugging)'
+			description: 'Path to local JSON file that contains issues returned in GitHub API query responses (for debugging)',
 		})
 		.option('repo', {
 			alias: 'r',
 			type: 'string',
 			array: true,
-			description: 'GitHub repo(s) containing TPAC meeting-planning issues. By default, the same label will be applied to all repo searches. If you want to use different labels for some repos, you can specify the label to use after the repo shortname/URL.'
+			description: 'GitHub repo(s) containing TPAC meeting-planning issues. By default, the same label will be applied to all repo searches. If you want to use different labels for some repos, you can specify the label to use after the repo shortname/URL.',
 		})
 		.option('save-result', {
 			alias: 'S',
 			type: 'string',
-			description: 'Path to local JSON file to save all issues returned from all GitHub API query responses (for debugging)'
+			description: 'Path to local JSON file to save all issues returned from all GitHub API query responses (for debugging)',
 		})
 		.option('style', {
 			alias: 's',
 			type: 'string',
 			description: 'Name of CSS file for styling the HTML output. This will be written directly into the output HTML.',
-			default: 'style.css'
+			default: 'style.css',
 		})
 		.conflicts('query-result', 'save-result')
 		.strict()
@@ -802,12 +802,12 @@ function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: Combi
 
 function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): string {
 	let html = '<ul>'
-	for (const [day, meetings] of dms) {
+	for (const [ day, meetings ] of dms) {
 		html += `<li>${pretty(day)}<ul>`
 		for (const meeting of meetings) {
 			html += listItemFor(meeting, false, equivalents)
 		}
-		html += `</ul></i>`
+		html += '</ul></i>'
 	}
 	html += '</ul>'
 	return html
@@ -839,15 +839,15 @@ function main() {
 	const equivalents: CombinedNames = new Map()
 
 	// FIXME: Figure out TypeScript/yargs workaround, and DRY with the below
-	if (!!args.combine) {
+	if (args.combine) {
 		if (args.combine.length === 2 && args.combine.every(value => typeof value === 'string')) {
-			args.combine = [args.combine] as unknown as string[]
+			args.combine = [ args.combine ] as unknown as string[]
 		}
-		if (!args.combine!.every(value =>
+		if (!args.combine.every(value =>
 			Array.isArray(value) && value.length === 2)) {
-			errorOut("Every 'equivalent' option value must be a pair of two usernames to consider equal. The values specified were:", args.combine)
+			errorOut('Every \'equivalent\' option value must be a pair of two usernames to consider equal. The values specified were:', args.combine)
 		}
-		for (const [name, otherName] of args.combine!) {
+		for (const [ name, otherName ] of args.combine) {
 			equivalents.set(name, otherName)
 		}
 	}
@@ -857,24 +857,24 @@ function main() {
 
 	const issues: GhIssue[] = []
 
-	if (!!args.queryResult) {
+	if (args.queryResult) {
 		console.log('Using existing query result.')
 		issues.push(...JSON.parse(fs.readFileSync(args.queryResult, 'utf-8')) as unknown as GhIssue[])
-	} else if (!!args.repo) {
+	} else if (args.repo) {
 		console.log('Querying repo(s)...')
 
 		// FIXME: Figure out TypeScript/yargs workaround, and DRY with the above
-		if (!!args.repo) {
+		if (args.repo) {
 			if (args.repo.length <= 2 && args.repo.every(value => typeof value === 'string')) {
-				args.repo = [args.repo] as unknown as string[]
+				args.repo = [ args.repo ] as unknown as string[]
 			}
-			if (!args.repo!.every(value =>
+			if (!args.repo.every(value =>
 				Array.isArray(value) && value.length > 0 && value.length < 3)) {
-				errorOut("Every 'repo' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:", args.repo)
+				errorOut('Every \'repo\' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:', args.repo)
 			}
 		}
 		// NOTE: TypeScript doesn't seem to know it, but at this point we know that args.repo is an array of 1- or 2-value arrays.
-		for (const repoLabel of args.repo!) {
+		for (const repoLabel of args.repo) {
 			issues.push(...getIssues(repoLabel[0], repoLabel[1] ?? args.label))
 		}
 	}
@@ -945,8 +945,8 @@ function main() {
 	let haveDefinitelyClashing = false
 	let haveNearlyClashing = false
 
-	for (const [name, dayMeetings] of personDayMeetings) {
-		for (const [day, meetings] of dayMeetings) {
+	for (const [ name, dayMeetings ] of personDayMeetings) {
+		for (const [ day, meetings ] of dayMeetings) {
 			const workingDay = workingDayFrom(day)
 			let endOfLastMeeting = workingDay.start
 
@@ -974,7 +974,7 @@ function main() {
 				if (Temporal.PlainDateTime.compare(meeting.start, endOfLastMeeting) > 0) {
 					personDayGaps.get(name)?.get(day)?.push({
 						start: endOfLastMeeting,
-						end: meeting.start
+						end: meeting.start,
 					})
 				}
 				if (Temporal.PlainDateTime.compare(meeting.end, endOfLastMeeting) > 0) {
@@ -983,10 +983,10 @@ function main() {
 			}
 
 			if (Temporal.PlainDateTime.compare(endOfLastMeeting, workingDay.end) < 0) {
-					personDayGaps.get(name)?.get(day)?.push({
-						start: endOfLastMeeting,
-						end: workingDay.end
-					})
+				personDayGaps.get(name)?.get(day)?.push({
+					start: endOfLastMeeting,
+					end: workingDay.end,
+				})
 			}
 		}
 	}
@@ -996,7 +996,7 @@ function main() {
 	}
 
 	const repoPossibleDuplicates: RepoDuplicateMeetings = new Map()
-	for (const [repo, meetings] of repoMeetings) {
+	for (const [ repo, meetings ] of repoMeetings) {
 		const grouped = Object.groupBy(meetings, meeting => meeting.calendarUrl)
 		const possibleDupes = Object.values(grouped).filter(group => group && group.length > 1)
 		if (possibleDupes.length > 0) {
@@ -1114,7 +1114,7 @@ function main() {
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output)
-	if (!!args.saveResult) {
+	if (args.saveResult) {
 		fs.writeFileSync(args.saveResult, JSON.stringify(issues, null, 2))
 		console.log('Written', args.saveResult)
 	}
