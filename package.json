@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24"
+  },
   "scripts": {
     "//build": "Needs -o and -r arguments. E.g. `npm run build -- -o schedule.html -r matatk/tpac-scheduling-helper`",
     "build": "tsx tsh.ts -m tpac.html"
