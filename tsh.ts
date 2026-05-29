@@ -1,36 +1,38 @@
 #!/usr/bin/env node
-import * as fs from 'fs'
+import fs from 'fs'
 import { spawnSync } from 'child_process'
 
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-import { JSDOM } from 'jsdom'
 import { Temporal } from '@js-temporal/polyfill'
+
+import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
+import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
+import { Days, isDay } from './src/day.ts'
+import { makeHtml } from './src/html.ts'
+
+import type { Day } from './src/day.ts'
+import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
+import type { Kind } from './src/kind.ts'
 
 const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 
-type CombinedNames = Map<string, string>
+export type CombinedNames = Map<string, string>
 type DayThings<T> = Map<Day, T[]>
-type DayMeetings = DayThings<Meeting>
-type DayGaps = DayThings<Gap>
-type PersonDayMeetings = Map<string, DayMeetings>
-type PersonClashingMeetings = Map<string, ClashingMeetingsSet>
-type PersonDayGaps = Map<string, DayGaps>
-type RepoMeetings = Map<string, Meeting[]>
-type RepoDuplicateMeetings = Map<string, Meeting[][]>
-
-const Days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday' ] as const
-type Day = typeof Days[number]
-
-const Kinds = [ 'group', 'breakout', 'cancelled' ] as const
-type Kind = typeof Kinds[number]
+export type DayMeetings = DayThings<Meeting>
+export type DayGaps = DayThings<Gap>
+export type PersonDayMeetings = Map<string, DayMeetings>
+export type PersonClashingMeetings = Map<string, ClashingMeetingsSet>
+export type PersonDayGaps = Map<string, DayGaps>
+export type RepoMeetings = Map<string, Meeting[]>
+export type RepoDuplicateMeetings = Map<string, Meeting[][]>
 
 interface WorkingDay {
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
 }
 
-const Match = {
+export const Match = {
 	EXACT: 'exact',
 	SUBSET: 'subset',
 	NOPE: 'nope',
@@ -68,16 +70,7 @@ interface GhBodyInfo {
 	notes?: string
 }
 
-interface CalendarMeetingInfo {
-	title: string
-	day: Day
-	start: string
-	end: string
-	room: string
-	kind: Kind
-}
-
-interface Meeting {
+export interface Meeting {
 	tag: number
 	kind: Kind
 	calendarTitle: string
@@ -97,43 +90,16 @@ interface Meeting {
 	notes?: string
 }
 
-interface Gap {
+export interface Gap {
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
 }
 
 const myName = 'TPAC scheduling helper'
 let meetingCounter = 1
+let calendarMeetingInfo: GetCalendarMeetingInfo
 
-class ClashingMeetingsSet {
-	#idPairs: Set<string>
-	#meetingPairs: [Meeting, Meeting][]
-
-	constructor() {
-		this.#idPairs = new Set()
-		this.#meetingPairs = []
-	}
-
-	add(a: Meeting, b: Meeting) {
-		const sorted = [ a, b ].sort((a, b) => a.tag - b.tag)
-		if (sorted.length !== 2) throw('Sorted pair is not of length 2:' + sorted)
-		const ident = sorted.map(m => m.tag).join(':')
-		if (!this.#idPairs.has(ident)) {
-			this.#idPairs.add(ident)
-			this.#meetingPairs.push([ sorted[0], sorted[1] ])
-		}
-	}
-
-	get size() {
-		return this.#meetingPairs.length
-	}
-
-	[Symbol.iterator]() {
-		return this.#meetingPairs[Symbol.iterator]()
-	}
-}
-
-function sort(activities: (Meeting | Gap)[]) {
+export function sort(activities: (Meeting | Gap)[]) {
 	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start))
 }
 
@@ -146,52 +112,14 @@ function errorOut(...args: any) {
 	process.exit(42)
 }
 
+export function repo(issueUrl: string): string {
+	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
+}
+
 function sameActualMeeting(meeting: Meeting, other: Meeting) {
 	return meeting.calendarUrl === other.calendarUrl &&
 		meeting.start.equals(other.start) &&
 		meeting.end.equals(other.end)
-}
-
-function people(names: string[], combined: CombinedNames): string {
-	return names.map(name => combined.has(name)
-		? combined.get(name) + ' (' + name + ')'
-		: name).join(', ')
-}
-
-function repo(issueUrl: string): string {
-	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
-}
-
-function peopleSelector(pms: PersonDayMeetings): string {
-	if (pms.size === 0) return ''
-	let html = '<label>Show clashing meetings for <select><option selected>everyone</option>'
-	pms.forEach((_, name) => html += `<option value="${name}">${name}</option>`)
-	return html + '</select></label>'
-}
-
-function peopleSelectorStyle(pms: PersonDayMeetings): string {
-	let html = `<style>
-		section[data-person] {
-			display: none;
-		}
-
-		body:has(select > option:not([value]):checked) section[data-person] {
-			display: block;
-		}`
-
-	pms.forEach((_, name) => {
-		html += `body:has(select > option[value="${name}"]:checked) section[data-person="${name}"] {
-			display: block;
-		}`
-	})
-
-	return html + '</style>'
-}
-
-function sectionLink(flag: boolean, idref: string, pretty: string) {
-	return flag
-		? `<a href="#${idref}">${pretty}</a>`
-		: `${pretty} (none)`
 }
 
 function addDayMeeting(map: Map<Day, Meeting[]>, day: Day, meeting: Meeting) {
@@ -217,35 +145,9 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 	map.get(name)!.add(m, o)
 }
 
-function dtf(pdt: Temporal.PlainDateTime): string {
-	return pdt.toLocaleString(undefined, {
-		hour: '2-digit',
-		minute: '2-digit',
-	})
-}
-
-function isDay(candidate: any): candidate is Day {
-	return Days.includes(candidate)
-}
-
-function pretty(thing: string): string {
-	return thing.charAt(0).toUpperCase() + thing.slice(1)
-}
-
 function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
 	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
 	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
-}
-
-function getSchedule(path: string) {
-	if (!fs.existsSync(path)) {
-		console.log('Downloading schedule...')
-		const child = spawnSync('curl', [ SCHEDULE_URL, '-o', path ])
-		if (child.error) {
-			throw (child.stderr)
-		}
-	}
-	return fs.readFileSync(path, 'utf-8')
 }
 
 function getIssues(repo: string, label: string): GhIssue[] {
@@ -307,12 +209,12 @@ function isMeeting(p: Partial<Meeting>): p is Meeting {
 		!!p.alternatives
 }
 
-function meetingFromIssue(doc: Document, issue: GhIssue): Meeting | Partial<Meeting> {
+function meetingFromIssue(getter: GetCalendarMeetingInfo, issue: GhIssue): Meeting | Partial<Meeting> {
 	const bodyInfo = extractBodyInfo(issue.body)
 	bodyInfo.extraPeople ??= []
 
 	const names = issue.assignees.map(assignee => assignee.login)
-	const calendarInfo = calendarMeetingInfo(doc, bodyInfo.calendarUrl ?? '')
+	const calendarInfo = getter(bodyInfo.calendarUrl ?? '')
 
 	const startOfDay = calendarInfo?.day ?
 		startOfDayFrom(calendarInfo.day) : undefined
@@ -402,201 +304,6 @@ function clashes(a: Meeting, b: Meeting): ClashStatus {
 	return Clash.NONE
 }
 
-function display(meeting: Meeting, combined: CombinedNames) {
-	console.log('      tag:', meeting.tag)
-	console.log('     kind:', meeting.kind)
-	console.log(`Cal title: ${meeting.calendarTitle}`)
-	console.log(`Our title: ${meeting.title}`)
-	console.log('     Repo:', repo(meeting.issueUrl))
-
-	if (meeting.match === Match.NOPE) {
-		console.log('  Cal day:', pretty(meeting.calendarDay))
-		console.log('  Our day:', pretty(meeting.day))
-	} else {
-		console.log('      Day:', pretty(meeting.day))
-	}
-
-	if (meeting.match !== Match.EXACT) {
-		console.log(' Cal time:', dtf(meeting.calendarStart), '-', dtf(meeting.calendarEnd))
-		console.log(' Our time:', dtf(meeting.start), '-', dtf(meeting.end))
-	} else {
-		console.log('     Time:', dtf(meeting.start), '-', dtf(meeting.end))
-	}
-
-	console.log('     Room:', meeting.calendarRoom)
-	console.log('   People:', people(meeting.names, combined))
-	console.log('  Cal URL:', meeting.calendarUrl)
-	console.log('  Our URL:', meeting.issueUrl)
-	console.log('    Match:', pretty(meeting.match))
-
-	console.log('     alts:', prettyAlts(meeting))
-}
-
-// TODO: DRY with above? Would this ever need to display notes, or alternatives?
-function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
-	console.log('      tag:', meeting.tag)
-	console.log('     kind:', meeting.kind)
-	console.log(`Cal title: ${meeting.calendarTitle}`)
-	console.log(`Our title: ${meeting.title}`)
-	console.log('     Repo:', meeting.issueUrl ? repo(meeting.issueUrl) : null)
-
-	console.log('  Cal day:', meeting.calendarDay ? pretty(meeting.calendarDay) : null)
-	console.log('  Our day:', meeting.day ? pretty(meeting.day) : null)
-
-	console.log(' Cal time:', meeting.calendarStart ? dtf(meeting.calendarStart) : '??', '-', meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??')
-	console.log(' Our time:', meeting.start ? dtf(meeting.start) : '??', '-', meeting.end ? dtf(meeting.end) : '??')
-
-	console.log('     Room:', meeting.calendarRoom ?? null)
-	console.log('   People:', meeting.names ? people(meeting.names, combined) : null)
-	console.log('  Cal URL:', meeting.calendarUrl)
-	console.log('  Our URL:', meeting.issueUrl)
-}
-
-function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: CombinedNames) {
-	let html = `<table>
-		<thead>
-			<tr>
-				<th><p>Person</p></th>
-				<th><p>Monday</p></th>
-				<th><p>Tuesday</p></th>
-				<th><p>Wednesday</p></th>
-				<th><p>Thursday</p></th>
-				<th><p>Friday</p></th>
-			</tr>
-		</thead>
-		<tbody>`
-
-	const sortedNames = [ ...pdg.keys() ].sort()
-
-	for (const name of sortedNames) {
-		const dayGaps = pdg.get(name)!
-		console.log(`// Timetable for ${name}`)
-		html += `<tr id="timetable-${name}"><th scope="row">${name}</th>`
-		console.log()
-		for (const [ day, gaps ] of dayGaps) {
-			console.log(pretty(day))
-			html += '<td><ul>'
-
-			// TODO: TS can't infer type
-			const activities: (Meeting | Gap)[] = [ ...pdm.get(name)?.get(day) ?? [], ...gaps ]
-			sort(activities)
-
-			for (const activity of activities) {
-				if ('kind' in activity) {
-					console.log(activity.calendarTitle)
-					html += listItemFor(activity, false, combined, name)
-				} else {
-					console.log('Free from', dtf(activity.start), 'to', dtf(activity.end))
-					html += `<li><p>Free ${dtf(activity.start)} to ${dtf(activity.end)}</p></li>`
-				}
-			}
-
-			html += '</ul></td>'
-			console.log()
-		}
-		html += '</tr>'
-		console.log()
-	}
-
-	return html + '</tbody></table>'
-}
-
-function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): string {
-	let out = ''
-	out += `<dt>Room</dt><dd>${meeting.calendarRoom ?? '???'}</dd>`
-	out += `<dt>People</dt><dd>${meeting.names ? people(meeting.names, combined) : '???'}</dd>`
-	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl}">${meeting.calendarUrl}</a></dd>`
-	out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl}">${meeting.issueUrl}</a></dd>`
-	return out
-}
-
-function htmlNotes(meeting: Partial<Meeting>): string {
-	if (meeting.notes) {
-		return `<details>
-			<summary>Meeting notes</summary>
-			<pre>${meeting.notes}</pre>
-		</details>`
-	}
-	return ''
-}
-
-function listItemFor(meeting: Meeting, includeDay: boolean, combined: CombinedNames, skipName?: string): string {
-	return `<li><p>${oneLinerFor(meeting, includeDay, combined, skipName)}</p></li>`
-}
-
-function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNames, skipName?: string): string {
-	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
-	const names = skipName
-		? meeting.names.filter(name => name !== skipName)
-		: meeting.names
-	const nameHtml = names.length > 0
-		? `, <i>${people(names, combned)}</i>`
-		: ''
-	return `<a href="#${meeting.tag}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
-}
-
-function htmlEscapeThatNeedsImproving(text?: string): string | undefined {
-	if (text) return text.replace('<', '&lt;').replace('>', '&gt;')
-	return
-}
-
-function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
-	return `<div id="${meeting.tag}" class="meeting ${condition}">
-		<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
-		<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : null}</span></p>
-		<dl>
-			<dt>Kind</dt><dd>${meeting.kind}</dd>`
-}
-
-function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
-	let out = ''
-
-	if (meeting.match === Match.NOPE && meeting.day !== meeting.calendarDay) {
-		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
-		out += `<dt>Our day</dt><dd>${pretty(meeting.day)}</dd>`
-	} else {
-		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
-	}
-
-	if (meeting.match !== Match.EXACT) {
-		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
-		out += `<dt>Our time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
-	} else {
-		out += `<dt>Time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
-	}
-
-	out += htmlPeopleAndUrls(meeting, combined)
-	out += `<dt>Time match</dt><dd>${pretty(meeting.match)}</dd>`
-	out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
-	out += '</dl>'
-
-	out += htmlNotes(meeting)
-
-	out += '</div>'
-
-	// TODO: Make the mapping of condition to string more type-y?
-	return htmlMeetingHeader(meeting, meeting.match) + out
-}
-
-function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames, klass: string): string {
-	let out = htmlMeetingHeader(meeting, klass)
-
-	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
-	out += `<dt>Our day</dt><dd>${meeting.day ? pretty(meeting.day) : '???'}</dd>`
-
-	out += `<dt>Calendar time</dt><dd>${meeting.calendarStart ? dtf(meeting.calendarStart) : '??'}&ndash;${meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??'}</dd>`
-	out += `<dt>Our time</dt><dd>${meeting.start ? dtf(meeting.start) : '??'}&ndash;${meeting.end ? dtf(meeting.end) : '??'}</dd>`
-
-	out += htmlPeopleAndUrls(meeting, combined)
-
-	out += '</dl>'
-	out += htmlNotes(meeting)
-
-	out += '</div>'
-
-	return out
-}
-
 function startOfDayFrom(candidate: Day): Temporal.PlainDateTime {
 	switch (candidate) {
 		case 'monday':
@@ -618,93 +325,6 @@ function workingDayFrom(day: Day): WorkingDay {
 		start: midnight.add(Temporal.Duration.from({ hours: 8, minutes: 30 })),
 		end: midnight.add(Temporal.Duration.from({ hours: 22, minutes: 30 })),
 	}
-}
-
-function calendarMeetingInfo(doc: Document, url: string): Partial<CalendarMeetingInfo> {
-	const link = doc.querySelector(`a[href="${url}"]`)
-	if (!link) return { kind: 'cancelled' }
-
-	const parentSection = (link?.parentElement?.parentElement?.parentElement)
-	const rawDay = parentSection?.id
-
-	const title = link?.firstElementChild?.textContent
-	const start = link?.children[4].children[0].textContent
-	const end = link?.children[4].children[1].textContent
-	const room = link?.children[2].textContent
-	const kind = link?.classList.contains('breakout') ? 'breakout' : 'group'
-
-	return { title, day: isDay(rawDay) ? rawDay : undefined, start, end, room, kind }
-}
-
-function prettyAlts(m: Meeting): string {
-	return m.alternatives.length > 0 ? m.alternatives.join(', ') : '(none)'
-}
-
-function htmlAlternativesOrNot(m: Meeting): string {
-	if (m.alternatives.length > 0) return `<p><strong>Possible alternative attendees:</strong> ${prettyAlts(m)}</p>`
-	return ''
-}
-
-function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
-	let html = ''
-	for (const [ name, cms ] of pcm) {
-		console.log(`// ${kind} clashing meetings for ${name}`)
-		console.log()
-		if (cms.size) {
-			html += `<section data-person="${name}">`
-			html += `<h3>${kind} clashing meetings for ${name}</h3><ul class="clashing">`
-			for (const [ m, o ] of cms) {
-				display(m, combined)
-				console.log('...and...')
-				display(o, combined)
-				html += `<li>
-					<p>${oneLinerFor(m, true, combined, name)}</p>${htmlAlternativesOrNot(m)}
-					<p>and</p>
-					<p>${oneLinerFor(o, true, combined, name)}</p>${htmlAlternativesOrNot(o)}</li>`
-				console.log()
-			}
-			html += '</ul>'
-			html += '</section>'
-			console.log()
-		}
-	}
-	return html
-}
-
-function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: CombinedNames): string {
-	let html = ''
-	for (const [ repo, possibleDupes ] of rdm) {
-		console.log(`// Possible duplicate meetings in ${repo}`)
-		console.log()
-		html += `<h3>Possibly duplicate meetings in ${repo}</h3>`
-		for (const [ index, meetings ] of possibleDupes.entries()) {
-			html += `<p>Set of possible duplicates ${index + 1}:</p>`
-			html += '<ul>'
-			for (const m of meetings) {
-				display(m, combined)
-				html += `<li><p>${oneLinerFor(m, true, combined)}</p></li>`
-				console.log()
-			}
-			html += '</ul>'
-		}
-		console.log()
-	}
-	return html
-}
-
-function outputUnassignedMeetings(unassigned: Meeting[], combined: CombinedNames): string {
-	let html = ''
-	console.log('// Meetings without any assignees')
-	console.log()
-	html += '<ul>'
-	for (const meeting of unassigned) {
-		display(meeting, combined)
-		html += `<li><p>${oneLinerFor(meeting, true, combined)}</p></li>`
-		console.log()
-	}
-	html += '</ul>'
-	console.log()
-	return html
 }
 
 function getArgs() {
@@ -784,56 +404,6 @@ function getArgs() {
 		.parseSync()
 }
 
-function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, klass: string): string {
-	if (ims.length === 0) return ''
-	let html = ''
-
-	console.log('// Invalid meeting issue entries')
-	console.log()
-	ims.forEach(p => {
-		displayPartial(p, equivalents)
-		html += htmlForPartialMeeting(p, equivalents, klass)
-		console.log()
-	})
-
-	console.log()
-	return html
-}
-
-function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): string {
-	let html = '<ul>'
-	for (const [ day, meetings ] of dms) {
-		html += `<li>${pretty(day)}<ul>`
-		for (const meeting of meetings) {
-			html += listItemFor(meeting, false, equivalents)
-		}
-		html += '</ul></i>'
-	}
-	html += '</ul>'
-	return html
-}
-
-function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showDay: boolean): string {
-	console.log('// Planned meetings')
-	console.log()
-	let html = ''
-	let currentDay: Day | null = null
-
-	for (const meeting of pms) {
-		if (showDay && meeting.calendarDay !== currentDay) {
-			currentDay = meeting.calendarDay
-			console.log(pretty(meeting.calendarDay))
-			html += `<h3>${pretty(meeting.calendarDay)}</h3>`
-		}
-		display(meeting, equivalents)
-		console.log()
-		html += htmlForMeeting(meeting, equivalents)
-	}
-
-	console.log()
-	return html
-}
-
 function main() {
 	const args = getArgs()
 	const equivalents: CombinedNames = new Map()
@@ -852,8 +422,7 @@ function main() {
 		}
 	}
 
-	const dom = new JSDOM(getSchedule(args.meetings))
-	const doc = dom.window.document
+	calendarMeetingInfo = makeCalendarMeetingInfoGetter(SCHEDULE_URL, args.meetings)
 
 	const issues: GhIssue[] = []
 
@@ -892,7 +461,7 @@ function main() {
 	const unassignedMeetings: Meeting[] = []
 
 	for (const issue of issues) {
-		const meeting = meetingFromIssue(doc, issue)
+		const meeting = meetingFromIssue(calendarMeetingInfo, issue)
 		if (isMeeting(meeting)) {
 			if (meeting.match === Match.NOPE) {
 				movedMeetings.push(meeting)
@@ -935,9 +504,6 @@ function main() {
 		addDayMeeting(dayMeetings, meeting.calendarDay, meeting)
 		addRepoMeeting(repoMeetings, repo(meeting.issueUrl), meeting)
 	}
-
-	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
-	const planned = outputPlannedMeetings(meetings, equivalents, true)
 
 	const peopleDefinitelyClashingMeetings: PersonClashingMeetings = new Map()
 	const peopleNearlyClashingMeetings: PersonClashingMeetings = new Map()
@@ -1005,112 +571,7 @@ function main() {
 		}
 	}
 
-	const haveInvalid = invalidMeetings.length > 0
-	const haveMeetings = meetings.length > 0
-	const haveMoved = movedMeetings.length > 0
-	const havePossibleDuplicates = repoPossibleDuplicates.size > 0
-	const haveUnassigned = unassignedMeetings.length > 0
-	const haveCancelled = cancelledMeetings.length > 0
-
-	const invalidId = 'invalid'
-	const invalidHeading = 'Invalid meeting entries'
-
-	const possibleDuplicatesId = 'possible-duplicates'
-	const possibleDuplicatesHeading = 'Possible duplicate meetings'
-
-	const movedId = 'moved-meetings'
-	const movedHeading = 'Moved meetings'
-
-	const clashingId = 'clashing'
-	const clashingHeading = 'Clashing meetings'
-
-	const nearlyClashingId = 'nearly-clashing'
-	const nearlyClashingHeading = 'Nearly clashing meetings'
-
-	const unassignedId = 'unassigned'
-	const unassignedHeading = 'Meetings without assignees'
-
-	const plannedId = 'planned'
-	const plannedHeading = 'Planned meetings'
-
-	const cancelledId = 'cancelled'
-	const cancelledHeading = 'Cancelled meetings'
-
-	const timetableId = 'timetable'
-	const timetableHeading = 'Timetable'
-
-	const htmlStart = `<!DOCTYPE html>
-		<head>
-			<meta charset="utf-8">
-			<title>${myName}</title>
-			<meta name="color-scheme" content="dark light" />
-			<style>${fs.readFileSync(args.style, 'utf-8')}</style>
-			${peopleSelectorStyle(personDayMeetings)}
-		</head>
-		<body>
-			<header>
-				<h1>${myName}</h1>
-			</header>
-			<nav>
-				<h2>Navigation and filtering</h2>
-				${peopleSelector(personDayMeetings)}
-				<ul>
-					<li><p>${sectionLink(haveInvalid, invalidId, invalidHeading)}</p></li>
-					<li><p>${sectionLink(haveMoved, movedId, movedHeading)}</p></li>
-					<li><p>${sectionLink(havePossibleDuplicates, possibleDuplicatesId, possibleDuplicatesHeading)}</p></li>
-					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
-					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
-					<li><p>${sectionLink(haveUnassigned, unassignedId, unassignedHeading)}</p></li>
-					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
-					<li><p>${sectionLink(haveCancelled, cancelledId, cancelledHeading)}</p></li>
-					<li><p>${sectionLink(true, timetableId, timetableHeading)}</p></li>
-				</ul>
-			</nav>
-			<main>`
-	const htmlEnd = '</main></body></html>'
-
-	const html = htmlStart +
-		(haveInvalid
-			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
-				outputUnprocessableMeetings(invalidMeetings, equivalents, 'invalid')
-			: '') +
-		(haveMoved
-			? `<h2 id="${movedId}">${movedHeading}</h2>` +
-				outputPlannedMeetings(movedMeetings, equivalents, false)
-			: '') +
-		(havePossibleDuplicates
-			? `<h2 id="${possibleDuplicatesId}">${possibleDuplicatesHeading}</h2>` +
-				'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>' +
-				'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>' +
-				outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents)
-			: '') +
-		(haveDefinitelyClashing
-			? `<h2 id="${clashingId}">${clashingHeading}</h2>` +
-				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents)
-			: '') +
-		(haveNearlyClashing
-			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>` +
-				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
-			: '') +
-		(haveUnassigned
-			? `<h2 id="${unassignedId}">${unassignedHeading}</h2>` +
-				outputUnassignedMeetings(unassignedMeetings, equivalents)
-			: '') +
-		(haveMeetings
-			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
-				'<h3>Summary</h3>' +
-				plannedLinks +
-				planned
-			: '') +
-		(haveCancelled
-			? `<h2 id="${cancelledId}">${cancelledHeading}</h2>` +
-				outputUnprocessableMeetings(cancelledMeetings, equivalents, 'cancelled')
-			: '') +
-		(true
-			? `<h2 id="${timetableId}">${timetableHeading}</h2>` +
-				outputTimetable(personDayMeetings, personDayGaps, equivalents)
-			: '') +
-		htmlEnd
+	const html = makeHtml(invalidMeetings, meetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, myName)
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output)
