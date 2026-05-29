@@ -532,7 +532,7 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNam
 	const nameHtml = names.length > 0
 		? `, <i>${people(names, combned)}</i>`
 		: ''
-	return `<a href="#${meeting.tag}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
+	return `<a href="#${meeting.tag}">${htmlEscapeThatNeedsImproving(meeting.title)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
 }
 
 function htmlEscapeThatNeedsImproving(text?: string): string | undefined {
@@ -542,8 +542,8 @@ function htmlEscapeThatNeedsImproving(text?: string): string | undefined {
 
 function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
 	return `<div id="${meeting.tag}" class="meeting ${condition}">
-		<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
-		<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : null}</span></p>
+		<h4>${htmlEscapeThatNeedsImproving(meeting.title)}</h4>
+		<p><i>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : null}</span></p>
 		<dl>
 			<dt>Kind</dt><dd>${meeting.kind}</dd>`
 }
