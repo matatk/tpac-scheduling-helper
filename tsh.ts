@@ -360,7 +360,22 @@ function main() {
 		}
 	}
 
-	const html = makeHtml(invalidMeetings, validMeetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, MY_NAME)
+	const html = makeHtml(invalidMeetings,
+		validMeetings,
+		movedMeetings,
+		repoPossibleDuplicates,
+		unassignedMeetings,
+		cancelledMeetings,
+		peopleNearlyClashingMeetings,
+		peopleDefinitelyClashingMeetings,
+		personDayMeetings,
+		equivalents,
+		dayMeetings,
+		haveDefinitelyClashing,
+		haveNearlyClashing,
+		personDayGaps,
+		args.style,
+		MY_NAME)
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output + '.')

@@ -10,7 +10,24 @@ import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps,
 import type { Day } from './day.ts'
 import type { Gap, Meeting } from './meeting.ts'
 
-export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[], movedMeetings: Meeting[], repoPossibleDuplicates: RepoDuplicateMeetings, unassignedMeetings: Meeting[], cancelledMeetings: Partial<Meeting>[], peopleNearlyClashingMeetings: PersonClashingMeetings, peopleDefinitelyClashingMeetings: PersonClashingMeetings, personDayMeetings: PersonDayMeetings, equivalents: CombinedNames, dayMeetings:DayMeetings, haveDefinitelyClashing: boolean, haveNearlyClashing: boolean, personDayGaps:PersonDayGaps, style: string, myName: string) {
+export function makeHtml(
+	invalidMeetings: Partial<Meeting>[],
+	meetings: Meeting[],
+	movedMeetings: Meeting[],
+	repoPossibleDuplicates: RepoDuplicateMeetings,
+	unassignedMeetings: Meeting[],
+	cancelledMeetings: Partial<Meeting>[],
+	peopleNearlyClashingMeetings: PersonClashingMeetings,
+	peopleDefinitelyClashingMeetings: PersonClashingMeetings,
+	personDayMeetings: PersonDayMeetings,
+	equivalents: CombinedNames,
+	dayMeetings:DayMeetings,
+	haveDefinitelyClashing: boolean,
+	haveNearlyClashing: boolean,
+	personDayGaps:PersonDayGaps,
+	style: string,
+	myName: string
+) {
 	const haveInvalid = invalidMeetings.length > 0
 	const haveMeetings = meetings.length > 0
 	const haveMoved = movedMeetings.length > 0
@@ -83,7 +100,12 @@ export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[
 				</ul>
 			</nav>
 			<main>`
-	const htmlEnd = '</main></body></html>'
+	// FIXME: I don't know my name, but I know my URL...
+	const htmlEnd = `</main>
+		<footer>
+			<p>Generated with <a href="https://github.com/matatk/tpac-scheduling-helper">${myName}</a>.</p>
+		</footer>
+		</body></html>`
 
 	const html = htmlStart +
 		`<h2>${headingGroupResults}</h2>` +
@@ -407,7 +429,6 @@ function htmlAlternativesOrNot(m: Meeting): string {
 	if (m.alternatives.length > 0) return `<p><strong>Possible alternative attendees:</strong> ${prettyAlts(m)}</p>`
 	return ''
 }
-
 
 function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, klass: string): string {
 	if (ims.length === 0) return ''
