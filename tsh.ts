@@ -248,7 +248,6 @@ function main() {
 		console.error('No issues found')
 		return
 	}
-	console.log()
 
 	const allMeetings = issues.map((issue =>
 		meetingFromIssue(calendarMeetingInfo, issue)))
@@ -364,10 +363,10 @@ function main() {
 	const html = makeHtml(invalidMeetings, validMeetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, MY_NAME)
 
 	fs.writeFileSync(args.output, html)
-	console.log('Written', args.output)
+	console.log('Written', args.output + '.')
 	if (args.saveResult) {
 		fs.writeFileSync(args.saveResult, JSON.stringify(issues, null, 2))
-		console.log('Written', args.saveResult)
+		console.log('Written', args.saveResult + '.')
 	}
 }
 

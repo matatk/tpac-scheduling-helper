@@ -147,23 +147,17 @@ function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): stri
 }
 
 function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showDay: boolean): string {
-	console.log('// Planned meetings')
-	console.log()
 	let html = ''
 	let currentDay: Day | null = null
 
 	for (const meeting of pms) {
 		if (showDay && meeting.calendarDay !== currentDay) {
 			currentDay = meeting.calendarDay
-			console.log(pretty(meeting.calendarDay))
 			html += `<h4>${pretty(meeting.calendarDay)}</h4>`
 		}
-		display(meeting, equivalents)
-		console.log()
 		html += htmlForMeeting(meeting, equivalents)
 	}
 
-	console.log()
 	return html
 }
 
@@ -177,16 +171,13 @@ function peopleSelector(pms: PersonDayMeetings): string {
 function peopleSelectorStyle(pms: PersonDayMeetings): string {
 	let html = `<style>
 		section[data-person] {
-			display: none;
 		}
 
 		body:has(select > option:not([value]):checked) section[data-person] {
-			display: block;
 		}`
 
 	pms.forEach((_, name) => {
 		html += `body:has(select > option[value="${name}"]:checked) section[data-person="${name}"] {
-			display: block;
 		}`
 	})
 
@@ -219,13 +210,10 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 
 	for (const name of sortedNames) {
 		const dayGaps = pdg.get(name)!
-		console.log(`// Timetable for ${name}`)
 		html += `<section data-person="${name}">`
 		html += `<h4 id="timetable-${name}">${name}</h4>`
 		html += tTop + '<tr>'
-		console.log()
 		for (const [ day, gaps ] of dayGaps) {
-			console.log(pretty(day))
 			html += '<td><ul>'
 
 			// TODO: TS can't infer type
@@ -234,19 +222,15 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 
 			for (const activity of activities) {
 				if ('kind' in activity) {
-					console.log(activity.calendarTitle)
 					html += listItemFor(activity, false, combined, name)
 				} else {
-					console.log('Free from', dtf(activity.start), 'to', dtf(activity.end))
 					html += `<li><p>Free ${dtf(activity.start)} to ${dtf(activity.end)}</p></li>`
 				}
 			}
 
 			html += '</ul></td>'
-			console.log()
 		}
 		html += '</tr></tbody></table></section>'
-		console.log()
 	}
 
 	return html
@@ -333,24 +317,17 @@ function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedName
 function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
 	let html = ''
 	for (const [ name, cms ] of pcm) {
-		console.log(`// ${kind} clashing meetings for ${name}`)
-		console.log()
 		if (cms.size) {
 			html += `<section data-person="${name}">`
 			html += `<h4>${kind} clashing meetings for ${name}</h4><ul class="clashing">`
 			for (const [ m, o ] of cms) {
-				display(m, combined)
-				console.log('...and...')
-				display(o, combined)
 				html += `<li>
 					<p>${oneLinerFor(m, true, combined, name)}</p>${htmlAlternativesOrNot(m)}
 					<p>and</p>
 					<p>${oneLinerFor(o, true, combined, name)}</p>${htmlAlternativesOrNot(o)}</li>`
-				console.log()
 			}
 			html += '</ul>'
 			html += '</section>'
-			console.log()
 		}
 	}
 	return html
@@ -359,89 +336,27 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: CombinedNames): string {
 	let html = ''
 	for (const [ repo, possibleDupes ] of rdm) {
-		console.log(`// Possible duplicate meetings in ${repo}`)
-		console.log()
 		html += `<h4>Possibly duplicate meetings in ${repo}</h4>`
 		for (const [ index, meetings ] of possibleDupes.entries()) {
 			html += `<p>Set of possible duplicates ${index + 1}:</p>`
 			html += '<ul>'
 			for (const m of meetings) {
-				display(m, combined)
 				html += `<li><p>${oneLinerFor(m, true, combined)}</p></li>`
-				console.log()
 			}
 			html += '</ul>'
 		}
-		console.log()
 	}
 	return html
 }
 
 function outputUnassignedMeetings(unassigned: Meeting[], combined: CombinedNames): string {
 	let html = ''
-	console.log('// Meetings without any assignees')
-	console.log()
 	html += '<ul>'
 	for (const meeting of unassigned) {
-		display(meeting, combined)
 		html += `<li><p>${oneLinerFor(meeting, true, combined)}</p></li>`
-		console.log()
 	}
 	html += '</ul>'
-	console.log()
 	return html
-}
-
-// FIXME shouldn't be here; not HTML output
-function display(meeting: Meeting, combined: CombinedNames) {
-	console.log('      tag:', meeting.tag)
-	console.log('     kind:', meeting.kind)
-	console.log(`Cal title: ${meeting.calendarTitle}`)
-	console.log(`Our title: ${meeting.title}`)
-	console.log('     Repo:', repo(meeting.issueUrl))
-
-	if (meeting.match === Match.NOPE) {
-		console.log('  Cal day:', pretty(meeting.calendarDay))
-		console.log('  Our day:', pretty(meeting.day))
-	} else {
-		console.log('      Day:', pretty(meeting.day))
-	}
-
-	if (meeting.match !== Match.EXACT) {
-		console.log(' Cal time:', dtf(meeting.calendarStart), '-', dtf(meeting.calendarEnd))
-		console.log(' Our time:', dtf(meeting.start), '-', dtf(meeting.end))
-	} else {
-		console.log('     Time:', dtf(meeting.start), '-', dtf(meeting.end))
-	}
-
-	console.log('     Room:', meeting.calendarRoom)
-	console.log('   People:', people(meeting.names, combined))
-	console.log('  Cal URL:', meeting.calendarUrl)
-	console.log('  Our URL:', meeting.issueUrl)
-	console.log('    Match:', pretty(meeting.match))
-
-	console.log('     alts:', prettyAlts(meeting))
-}
-
-// FIXME: shouldn't be here; not HTML
-// TODO: DRY with above? Would this ever need to display notes, or alternatives?
-function displayPartial(meeting: Partial<Meeting>, combined: CombinedNames) {
-	console.log('      tag:', meeting.tag)
-	console.log('     kind:', meeting.kind)
-	console.log(`Cal title: ${meeting.calendarTitle}`)
-	console.log(`Our title: ${meeting.title}`)
-	console.log('     Repo:', meeting.issueUrl ? repo(meeting.issueUrl) : null)
-
-	console.log('  Cal day:', meeting.calendarDay ? pretty(meeting.calendarDay) : null)
-	console.log('  Our day:', meeting.day ? pretty(meeting.day) : null)
-
-	console.log(' Cal time:', meeting.calendarStart ? dtf(meeting.calendarStart) : '??', '-', meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??')
-	console.log(' Our time:', meeting.start ? dtf(meeting.start) : '??', '-', meeting.end ? dtf(meeting.end) : '??')
-
-	console.log('     Room:', meeting.calendarRoom ?? null)
-	console.log('   People:', meeting.names ? people(meeting.names, combined) : null)
-	console.log('  Cal URL:', meeting.calendarUrl)
-	console.log('  Our URL:', meeting.issueUrl)
 }
 
 function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): string {
@@ -494,14 +409,9 @@ function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: Combi
 	if (ims.length === 0) return ''
 	let html = ''
 
-	console.log('// Invalid meeting issue entries')
-	console.log()
 	ims.forEach(p => {
-		displayPartial(p, equivalents)
 		html += htmlForPartialMeeting(p, equivalents, klass)
-		console.log()
 	})
 
-	console.log()
 	return html
 }
