@@ -30,15 +30,16 @@ The tool can be run every so-often to check...
 
 3. Repeat whenever you like.
 
-**Limitations:** The tool is capable of recognising the case where you plan to attend only _part_ of a meeting, but as the meeting's agenda is a free text field, with no established format (or a link to some other URL), it can't check whether the particular slot within the larger meeting is still as you planned, so you'll need to check those things manually. (The tool will, however, remind you of that.)
+> [!NOTE]
+> The tool is capable of recognising the case where you plan to attend only _part_ of a meeting, but as the meeting's agenda is a free text field, with no established format (or a link to some other URL), it can't check whether the particular slot within the larger meeting is still as you planned, so you'll need to check those things manually. (The tool will, however, remind you of that.)
 
 ### Example usage
 
-To run it on _this_ repo (which contains some example TPAC planning issues), using the default issue label of 'tpac', you could invoke it like this (on Unix-like OSes):
+There's a repo containing some example (and test) TPAC planning issues. You can try out the tool on that repo by invoking it like this (on Unix-like OSes):
 
 ```sh
 ./tsh.ts \
-	--repo matatk/tpac-scheduling-helper \
+	--repo matatk/tpac-scheduling-helper-test-issues-1 \
 	--meetings schedule.html \
 	--output tpac.html
 ```
