@@ -18,7 +18,7 @@ Test for attending the whole session.`
 			start: new Temporal.PlainDateTime(2025, 11, 10, 13, 45),
 			end: new Temporal.PlainDateTime(2025, 11, 10, 15),
 			notes: 'Test for attending the whole session.',
-			extraPeople: []
+			extraPeople: [],
 		})
 	})
 
@@ -31,7 +31,7 @@ Test for attending the whole session.`
 			start: undefined,
 			end: undefined,
 			notes: '',
-			extraPeople: []
+			extraPeople: [],
 		})
 	})
 })

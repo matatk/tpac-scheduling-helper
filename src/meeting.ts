@@ -154,10 +154,10 @@ export function categoriseMeetings(allMeetings: Partial<Meeting>[]): Categorised
 	sort(unassignedMeetings)
 
 	return {
-    cancelledMeetings,
-    invalidMeetings,
-    movedMeetings,
-    validMeetings,
-    unassignedMeetings
-  }
+		cancelledMeetings,
+		invalidMeetings,
+		movedMeetings,
+		validMeetings,
+		unassignedMeetings,
+	}
 }

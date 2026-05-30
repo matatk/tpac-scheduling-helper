@@ -11,7 +11,7 @@ import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
 import { Days, startOfDayFrom } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
-import { categoriseMeetings, Clash, clashes, isMeetingInGap, sameActualMeeting } from './src/meeting.ts'
+import { Clash, categoriseMeetings, clashes, isMeetingInGap, sameActualMeeting } from './src/meeting.ts'
 
 import type { Day } from './src/day.ts'
 import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
@@ -255,7 +255,7 @@ function main() {
 		cancelledMeetings,
 		movedMeetings,
 		invalidMeetings,
-		unassignedMeetings
+		unassignedMeetings,
 	} = categoriseMeetings(allMeetings)
 
 	const dayMeetings: DayMeetings = dayThings<Meeting>()

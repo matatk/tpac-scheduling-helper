@@ -1,6 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill'
 
-import { startOfDayFrom, isDay } from './day.ts'
+import { isDay, startOfDayFrom } from './day.ts'
 import { timeMatch } from './meeting.ts'
 
 import type { GetCalendarMeetingInfo } from './calendar-meeting-info.ts'
