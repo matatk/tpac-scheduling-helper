@@ -6,11 +6,12 @@ import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 import { Temporal } from '@js-temporal/polyfill'
 
+import meetingFromIssue from './src/meeting-from-issue.ts'
 import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
-import { Days, isDay, startOfDayFrom } from './src/day.ts'
+import { Days, startOfDayFrom } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
-import { categoriseMeetings, Clash, clashes, isMeetingInGap, sameActualMeeting, timeMatch } from './src/meeting.ts'
+import { categoriseMeetings, Clash, clashes, isMeetingInGap, sameActualMeeting } from './src/meeting.ts'
 
 import type { Day } from './src/day.ts'
 import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
@@ -19,11 +20,11 @@ import type { Gap, Meeting } from './src/meeting.ts'
 export type CombinedNames = Map<string, string>
 type DayThings<T> = Map<Day, T[]>
 export type DayMeetings = DayThings<Meeting>
-export type DayGaps = DayThings<Gap>
+type DayGaps = DayThings<Gap>
 export type PersonDayMeetings = Map<string, DayMeetings>
 export type PersonClashingMeetings = Map<string, ClashingMeetingsSet>
 export type PersonDayGaps = Map<string, DayGaps>
-export type RepoMeetings = Map<string, Meeting[]>
+type RepoMeetings = Map<string, Meeting[]>
 export type RepoDuplicateMeetings = Map<string, Meeting[][]>
 
 export interface GhIssue {
@@ -40,16 +41,6 @@ interface GhAssignee {
 	databaseId: number
 }
 
-interface GhBodyInfo {
-	calendarUrl: string
-	day: Day
-	startOfDay: Temporal.PlainDateTime
-	start: Temporal.PlainDateTime
-	end: Temporal.PlainDateTime
-	extraPeople: string[]  // Hack around 10-assignee limit
-	notes?: string
-}
-
 interface WorkingDay {
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
@@ -59,73 +50,6 @@ const MY_NAME = 'TPAC scheduling helper'
 const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 
 let calendarMeetingInfo: GetCalendarMeetingInfo
-let meetingCounter = 1
-
-function meetingFromIssue(getter: GetCalendarMeetingInfo, issue: GhIssue): Meeting | Partial<Meeting> {
-	const bodyInfo = extractBodyInfo(issue.body)
-	bodyInfo.extraPeople ??= []
-
-	const names = issue.assignees.map(assignee => assignee.login)
-	const calendarInfo = getter(bodyInfo.calendarUrl ?? '')
-
-	const startOfDay = calendarInfo?.day ?
-		startOfDayFrom(calendarInfo.day) : undefined
-	const calendarStart = startOfDay && calendarInfo?.start ?
-		timeStringToPlainDateTime(startOfDay, calendarInfo.start) : undefined
-	const calendarEnd = startOfDay && calendarInfo?.end ?
-		timeStringToPlainDateTime(startOfDay, calendarInfo.end) : undefined
-	const match = calendarStart && calendarEnd && bodyInfo.start && bodyInfo.end ?
-		timeMatch(calendarStart, calendarEnd, bodyInfo.start, bodyInfo.end) : undefined
-
-	return {
-		tag: meetingCounter++,
-		kind: calendarInfo?.kind,
-		calendarTitle: calendarInfo?.title,
-		title: issue.title,
-		calendarDay: calendarInfo?.day,
-		day: bodyInfo.day,
-		calendarStart,
-		start: bodyInfo.start,
-		calendarEnd,
-		end: bodyInfo.end,
-		match,
-		calendarRoom: calendarInfo?.room,
-		names: Array.from(new Set([ ...names, ...bodyInfo.extraPeople ])),
-		calendarUrl: bodyInfo.calendarUrl,
-		issueUrl: issue.url,
-		alternatives: [], // NOTE: Only known after computing clashes and free times
-		notes: bodyInfo.notes,
-	}
-}
-
-function extractBodyInfo(body: string): Partial<GhBodyInfo> {
-	// GitHub API line-ending weirdness: https://github.com/actions/runner/issues/1462#issuecomment-2676329157
-	const bodyLines = body.split(/\r?\n/)
-
-	const calendarUrl = bodyLines.shift()
-	const rawDay = bodyLines.shift()?.toLowerCase()
-	const day = isDay(rawDay) ? rawDay : undefined
-	const startOfDay = day ? startOfDayFrom(day) ?? undefined : undefined
-	const time = bodyLines.shift()
-	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
-	const start = startAndEnd?.[0]
-	const end = startAndEnd?.[1]
-	const extraPeopleOrBlank = bodyLines.shift()
-	const haveExtraLine = extraPeopleOrBlank && extraPeopleOrBlank.length > 0
-
-	const extraPeople = haveExtraLine
-		? extraPeopleOrBlank.replaceAll(',', '').replaceAll('@', '').split(/\s/)
-		: []
-
-	if (haveExtraLine) bodyLines.shift()  // Blank line after metadata
-
-	return { calendarUrl, day, startOfDay, start, end, extraPeople, notes: bodyLines.join('\n') }
-}
-
-function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
-	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
-	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
-}
 
 function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
 	return new Map(Days.map(day => [ day, [] ]))
