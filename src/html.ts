@@ -21,20 +21,17 @@ export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[
 	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
 	const planned = outputPlannedMeetings(meetings, equivalents, true)
 
+	const headingGroupResults = 'Group results'
+	const headingPersonalResults = 'Personal results'
+
 	const invalidId = 'invalid'
 	const invalidHeading = 'Invalid meeting entries'
-
-	const possibleDuplicatesId = 'possible-duplicates'
-	const possibleDuplicatesHeading = 'Possible duplicate meetings'
 
 	const movedId = 'moved-meetings'
 	const movedHeading = 'Moved meetings'
 
-	const clashingId = 'clashing'
-	const clashingHeading = 'Clashing meetings'
-
-	const nearlyClashingId = 'nearly-clashing'
-	const nearlyClashingHeading = 'Nearly clashing meetings'
+	const possibleDuplicatesId = 'possible-duplicates'
+	const possibleDuplicatesHeading = 'Possible duplicate meetings'
 
 	const unassignedId = 'unassigned'
 	const unassignedHeading = 'Meetings without assignees'
@@ -44,6 +41,12 @@ export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[
 
 	const cancelledId = 'cancelled'
 	const cancelledHeading = 'Cancelled meetings'
+
+	const clashingId = 'clashing'
+	const clashingHeading = 'Clashing meetings'
+
+	const nearlyClashingId = 'nearly-clashing'
+	const nearlyClashingHeading = 'Nearly clashing meetings'
 
 	const timetableId = 'timetable'
 	const timetableHeading = 'Timetable'
@@ -62,16 +65,20 @@ export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[
 			</header>
 			<nav>
 				<h2>Navigation and filtering</h2>
-				${peopleSelector(personDayMeetings)}
+				<h3>${headingGroupResults}</h3>
 				<ul>
 					<li><p>${sectionLink(haveInvalid, invalidId, invalidHeading)}</p></li>
 					<li><p>${sectionLink(haveMoved, movedId, movedHeading)}</p></li>
 					<li><p>${sectionLink(havePossibleDuplicates, possibleDuplicatesId, possibleDuplicatesHeading)}</p></li>
-					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
-					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
 					<li><p>${sectionLink(haveUnassigned, unassignedId, unassignedHeading)}</p></li>
 					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
 					<li><p>${sectionLink(haveCancelled, cancelledId, cancelledHeading)}</p></li>
+				</ul>
+				<h3>${headingPersonalResults}</h3>
+				${peopleSelector(personDayMeetings)}
+				<ul>
+					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
+					<li><p>${sectionLink(haveNearlyClashing, nearlyClashingId, nearlyClashingHeading)}</p></li>
 					<li><p>${sectionLink(true, timetableId, timetableHeading)}</p></li>
 				</ul>
 			</nav>
@@ -79,44 +86,46 @@ export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[
 	const htmlEnd = '</main></body></html>'
 
 	const html = htmlStart +
+		`<h2>${headingGroupResults}</h2>` +
 		(haveInvalid
-			? `<h2 id="${invalidId}">${invalidHeading}</h2>` +
+			? `<h3 id="${invalidId}">${invalidHeading}</h3>` +
 				outputUnprocessableMeetings(invalidMeetings, equivalents, 'invalid')
 			: '') +
 		(haveMoved
-			? `<h2 id="${movedId}">${movedHeading}</h2>` +
+			? `<h3 id="${movedId}">${movedHeading}</h3>` +
 				outputPlannedMeetings(movedMeetings, equivalents, false)
 			: '') +
 		(havePossibleDuplicates
-			? `<h2 id="${possibleDuplicatesId}">${possibleDuplicatesHeading}</h2>` +
+			? `<h3 id="${possibleDuplicatesId}">${possibleDuplicatesHeading}</h3>` +
 				'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>' +
 				'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>' +
 				outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents)
 			: '') +
-		(haveDefinitelyClashing
-			? `<h2 id="${clashingId}">${clashingHeading}</h2>` +
-				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents)
-			: '') +
-		(haveNearlyClashing
-			? `<h2 id="${nearlyClashingId}">${nearlyClashingHeading}</h2>` +
-				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
-			: '') +
 		(haveUnassigned
-			? `<h2 id="${unassignedId}">${unassignedHeading}</h2>` +
+			? `<h3 id="${unassignedId}">${unassignedHeading}</h3>` +
 				outputUnassignedMeetings(unassignedMeetings, equivalents)
 			: '') +
 		(haveMeetings
-			? `<h2 id="${plannedId}">${plannedHeading}</h2>` +
-				'<h3>Summary</h3>' +
+			? `<h3 id="${plannedId}">${plannedHeading}</h3>` +
+				'<h4>Summary</h4>' +
 				plannedLinks +
 				planned
 			: '') +
 		(haveCancelled
-			? `<h2 id="${cancelledId}">${cancelledHeading}</h2>` +
+			? `<h3 id="${cancelledId}">${cancelledHeading}</h3>` +
 				outputUnprocessableMeetings(cancelledMeetings, equivalents, 'cancelled')
 			: '') +
+		`<h2>${headingPersonalResults}</h2>` +
+		(haveDefinitelyClashing
+			? `<h3 id="${clashingId}">${clashingHeading}</h3>` +
+				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents)
+			: '') +
+		(haveNearlyClashing
+			? `<h3 id="${nearlyClashingId}">${nearlyClashingHeading}</h3>` +
+				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
+			: '') +
 		(true
-			? `<h2 id="${timetableId}">${timetableHeading}</h2>` +
+			? `<h3 id="${timetableId}">${timetableHeading}</h3>` +
 				outputTimetable(personDayMeetings, personDayGaps, equivalents)
 			: '') +
 		htmlEnd
@@ -147,7 +156,7 @@ function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showD
 		if (showDay && meeting.calendarDay !== currentDay) {
 			currentDay = meeting.calendarDay
 			console.log(pretty(meeting.calendarDay))
-			html += `<h3>${pretty(meeting.calendarDay)}</h3>`
+			html += `<h4>${pretty(meeting.calendarDay)}</h4>`
 		}
 		display(meeting, equivalents)
 		console.log()
@@ -160,7 +169,7 @@ function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showD
 
 function peopleSelector(pms: PersonDayMeetings): string {
 	if (pms.size === 0) return ''
-	let html = '<label>Show clashing meetings for <select><option selected>everyone</option>'
+	let html = '<label>Filter for <select><option selected>everyone</option>'
 	pms.forEach((_, name) => html += `<option value="${name}">${name}</option>`)
 	return html + '</select></label>'
 }
@@ -192,10 +201,9 @@ function sectionLink(flag: boolean, idref: string, pretty: string) {
 
 
 function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: CombinedNames) {
-	let html = `<table>
+	const tTop = `<table>
 		<thead>
 			<tr>
-				<th><p>Person</p></th>
 				<th><p>Monday</p></th>
 				<th><p>Tuesday</p></th>
 				<th><p>Wednesday</p></th>
@@ -207,10 +215,14 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 
 	const sortedNames = [ ...pdg.keys() ].sort()
 
+	let html = ''
+
 	for (const name of sortedNames) {
 		const dayGaps = pdg.get(name)!
 		console.log(`// Timetable for ${name}`)
-		html += `<tr id="timetable-${name}"><th scope="row">${name}</th>`
+		html += `<section data-person="${name}">`
+		html += `<h4 id="timetable-${name}">${name}</h4>`
+		html += tTop + '<tr>'
 		console.log()
 		for (const [ day, gaps ] of dayGaps) {
 			console.log(pretty(day))
@@ -233,11 +245,11 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 			html += '</ul></td>'
 			console.log()
 		}
-		html += '</tr>'
+		html += '</tr></tbody></table></section>'
 		console.log()
 	}
 
-	return html + '</tbody></table>'
+	return html
 }
 
 function listItemFor(meeting: Meeting, includeDay: boolean, combined: CombinedNames, skipName?: string): string {
@@ -325,7 +337,7 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 		console.log()
 		if (cms.size) {
 			html += `<section data-person="${name}">`
-			html += `<h3>${kind} clashing meetings for ${name}</h3><ul class="clashing">`
+			html += `<h4>${kind} clashing meetings for ${name}</h4><ul class="clashing">`
 			for (const [ m, o ] of cms) {
 				display(m, combined)
 				console.log('...and...')
@@ -349,7 +361,7 @@ function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: C
 	for (const [ repo, possibleDupes ] of rdm) {
 		console.log(`// Possible duplicate meetings in ${repo}`)
 		console.log()
-		html += `<h3>Possibly duplicate meetings in ${repo}</h3>`
+		html += `<h4>Possibly duplicate meetings in ${repo}</h4>`
 		for (const [ index, meetings ] of possibleDupes.entries()) {
 			html += `<p>Set of possible duplicates ${index + 1}:</p>`
 			html += '<ul>'

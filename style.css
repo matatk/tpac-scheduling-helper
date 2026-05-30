@@ -31,6 +31,35 @@ body {
 	margin: auto;
 }
 
+nav>ul {
+	line-height: normal;
+}
+
+@media screen and (min-width: 80em) {
+	body {
+		width: auto;
+	}
+
+	nav {
+		position: sticky;
+		top: 0.5rem;
+		width: 19rem;
+		float: left;
+		max-height: calc(100vh - 0.5rem);
+		overflow-y: auto;
+	}
+
+	nav>h2 {
+		margin-block-start: 0;
+	}
+
+	main {
+		margin-inline-start: 20rem;
+		width: 60rem;
+		max-width: calc(98vw - 20rem);
+	}
+}
+
 select {
 	font-size: inherit;
 }
@@ -109,7 +138,7 @@ pre {
 table {
 	margin: auto;
 	border-collapse: collapse;
-	position: absolute;
+	position: relative;
 	left: 0;
 	right: 0;
 }
@@ -118,7 +147,8 @@ th {
 	font-weight: bold;
 }
 
-th, td {
+th,
+td {
 	padding-inline: 0.5em;
 }
 
