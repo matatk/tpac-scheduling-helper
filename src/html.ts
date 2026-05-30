@@ -2,8 +2,9 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { repo, sort } from '../tsh.ts'
+import { repo } from '../tsh.ts'
 import { Match } from './meeting.ts'
+import sort from './sort.ts'
 
 import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from '../tsh.ts'
 import type { Day } from './day.ts'

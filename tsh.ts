@@ -10,13 +10,11 @@ import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
 import { Days, isDay, startOfDayFrom } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
-import { Clash, Match, clashes, isMeeting, isMeetingInGap, sameActualMeeting, timeMatch } from './src/meeting.ts'
+import { categoriseMeetings, Clash, clashes, isMeetingInGap, sameActualMeeting, timeMatch } from './src/meeting.ts'
 
 import type { Day } from './src/day.ts'
 import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
 import type { Gap, Meeting } from './src/meeting.ts'
-
-const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 
 export type CombinedNames = Map<string, string>
 type DayThings<T> = Map<Day, T[]>
@@ -28,12 +26,7 @@ export type PersonDayGaps = Map<string, DayGaps>
 export type RepoMeetings = Map<string, Meeting[]>
 export type RepoDuplicateMeetings = Map<string, Meeting[][]>
 
-interface WorkingDay {
-	start: Temporal.PlainDateTime
-	end: Temporal.PlainDateTime
-}
-
-interface GhIssue {
+export interface GhIssue {
 	assignees: GhAssignee[]
 	body: string
 	title: string
@@ -57,7 +50,14 @@ interface GhBodyInfo {
 	notes?: string
 }
 
-const myName = 'TPAC scheduling helper'
+interface WorkingDay {
+	start: Temporal.PlainDateTime
+	end: Temporal.PlainDateTime
+}
+
+const MY_NAME = 'TPAC scheduling helper'
+const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
+
 let calendarMeetingInfo: GetCalendarMeetingInfo
 let meetingCounter = 1
 
@@ -122,14 +122,9 @@ function extractBodyInfo(body: string): Partial<GhBodyInfo> {
 	return { calendarUrl, day, startOfDay, start, end, extraPeople, notes: bodyLines.join('\n') }
 }
 
-
 function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
 	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
 	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
-}
-
-export function sort(activities: (Meeting | Gap)[]) {
-	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start))
 }
 
 function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
@@ -145,19 +140,11 @@ export function repo(issueUrl: string): string {
 	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
 }
 
-function addDayMeeting(map: Map<Day, Meeting[]>, day: Day, meeting: Meeting) {
-	if (map.has(day)) {
-		map.get(day)!.push(meeting)
+function addMeeting<T extends Day | string>(map: Map<T, Meeting[]>, key: T, meeting: Meeting) {
+	if (map.has(key)) {
+		map.get(key)!.push(meeting)
 	} else {
-		map.set(day, [ meeting ])
-	}
-}
-
-function addRepoMeeting(map: Map<string, Meeting[]>, repo: string, meeting: Meeting) {
-	if (map.has(repo)) {
-		map.get(repo)!.push(meeting)
-	} else {
-		map.set(repo, [ meeting ])
+		map.set(key, [ meeting ])
 	}
 }
 
@@ -212,7 +199,7 @@ function getArgs() {
 	return yargs(hideBin(process.argv)).parserConfiguration({
 		'flatten-duplicate-arrays': false,
 	})
-		.usage(myName + '\n\nUsage: $0 [options]')
+		.usage(MY_NAME + '\n\nUsage: $0 [options]')
 		.option('alternatives', {
 			alias: 'a',
 			type: 'string',
@@ -335,33 +322,17 @@ function main() {
 	}
 	console.log()
 
-	const meetings: Meeting[] = []
-	const cancelledMeetings: Partial<Meeting>[] = []
-	const invalidMeetings: Partial<Meeting>[] = []
-	const movedMeetings: Meeting[] = []
-	const unassignedMeetings: Meeting[] = []
+	const allMeetings = issues.map((issue =>
+		meetingFromIssue(calendarMeetingInfo, issue)))
 
-	for (const issue of issues) {
-		const meeting = meetingFromIssue(calendarMeetingInfo, issue)
-		if (isMeeting(meeting)) {
-			if (meeting.match === Match.NOPE) {
-				movedMeetings.push(meeting)
-			} else {
-				meetings.push(meeting)
-			}
-			if (meeting.names.length === 0) {
-				unassignedMeetings.push(meeting)
-			}
-		} else if (meeting?.kind === 'cancelled') {
-			cancelledMeetings.push(meeting)
-		} else {
-			invalidMeetings.push(meeting)
-		}
-	}
-
-	sort(meetings)
-	sort(movedMeetings)
-	sort(unassignedMeetings)
+	const {
+		validMeetings: meetings,
+		// All of these are only used in the output stage...
+		cancelledMeetings,
+		movedMeetings,
+		invalidMeetings,
+		unassignedMeetings
+	} = categoriseMeetings(allMeetings)
 
 	const dayMeetings: DayMeetings = dayThings<Meeting>()
 	const personDayMeetings: PersonDayMeetings = new Map()
@@ -382,8 +353,8 @@ function main() {
 			}
 		}
 
-		addDayMeeting(dayMeetings, meeting.calendarDay, meeting)
-		addRepoMeeting(repoMeetings, repo(meeting.issueUrl), meeting)
+		addMeeting(dayMeetings, meeting.calendarDay, meeting)
+		addMeeting(repoMeetings, repo(meeting.issueUrl), meeting)
 	}
 
 	const peopleDefinitelyClashingMeetings: PersonClashingMeetings = new Map()
@@ -452,7 +423,7 @@ function main() {
 		}
 	}
 
-	const html = makeHtml(invalidMeetings, meetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, myName)
+	const html = makeHtml(invalidMeetings, meetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, MY_NAME)
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output)

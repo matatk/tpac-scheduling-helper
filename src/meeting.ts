@@ -1,5 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill'
 
+import sort from './sort.ts'
+
 import type { Day } from './day.ts'
 import type { Kind } from './kind.ts'
 
@@ -23,6 +25,14 @@ export interface Meeting {
 	issueUrl: string
 	alternatives: string[]
 	notes?: string
+}
+
+interface CategorisedMeetings {
+	cancelledMeetings: Partial<Meeting>[]
+	invalidMeetings: Partial<Meeting>[]
+	movedMeetings: Meeting[]
+	validMeetings: Meeting[]
+	unassignedMeetings: Meeting[]
 }
 
 export interface Gap {
@@ -113,4 +123,41 @@ export function sameActualMeeting(meeting: Meeting, other: Meeting) {
 	return meeting.calendarUrl === other.calendarUrl &&
 		meeting.start.equals(other.start) &&
 		meeting.end.equals(other.end)
+}
+
+export function categoriseMeetings(allMeetings: Partial<Meeting>[]): CategorisedMeetings {
+	const validMeetings: Meeting[] = []
+	const cancelledMeetings: Partial<Meeting>[] = []
+	const invalidMeetings: Partial<Meeting>[] = []
+	const movedMeetings: Meeting[] = []
+	const unassignedMeetings: Meeting[] = []
+
+	for (const meeting of allMeetings) {
+		if (isMeeting(meeting)) {
+			if (meeting.match === Match.NOPE) {
+				movedMeetings.push(meeting)
+			} else {
+				validMeetings.push(meeting)
+			}
+			if (meeting.names.length === 0) {
+				unassignedMeetings.push(meeting)
+			}
+		} else if (meeting?.kind === 'cancelled') {
+			cancelledMeetings.push(meeting)
+		} else {
+			invalidMeetings.push(meeting)
+		}
+	}
+
+	sort(validMeetings)
+	sort(movedMeetings)
+	sort(unassignedMeetings)
+
+	return {
+    cancelledMeetings,
+    invalidMeetings,
+    movedMeetings,
+    validMeetings,
+    unassignedMeetings
+  }
 }

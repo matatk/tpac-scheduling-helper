@@ -1,4 +1,4 @@
-import type { Meeting } from '../tsh.ts'
+import type { Meeting } from './meeting.ts'
 
 export default class ClashingMeetingsSet {
 	#idPairs: Set<string>
@@ -11,7 +11,7 @@ export default class ClashingMeetingsSet {
 
 	add(a: Meeting, b: Meeting) {
 		const sorted = [ a, b ].sort((a, b) => a.tag - b.tag)
-		if (sorted.length !== 2) throw('Sorted pair is not of length 2:' + sorted)
+		if (sorted.length !== 2) throw('Sorted pair is not of length 2: ' + sorted)
 		const ident = sorted.map(m => m.tag).join(':')
 		if (!this.#idPairs.has(ident)) {
 			this.#idPairs.add(ident)
