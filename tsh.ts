@@ -95,15 +95,19 @@ function getIssues(repo: string, label: string): GhIssue[] {
 	return []  // NOTE: Here for TypeScript
 }
 
-function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] {
+function alternatives(
+	possibleAlternatives: string[],
+	personDayGaps: PersonDayGaps,
+	meeting: Meeting
+): string[] {
 	const out: string[] = []
 
-	for (const name of pdg.keys()) {
-		if (m.names.includes(name)) continue
-		if (alts.length > 0 && !alts.includes(name)) continue
-		for (const gap of pdg.get(name)?.get(m.day) ?? []) {
-			if (isMeetingInGap(m, gap)) {
-				out.push(name)
+	for (const person of personDayGaps.keys()) {
+		if (meeting.names.includes(person)) continue
+		if (possibleAlternatives.length > 0 && !possibleAlternatives.includes(person)) continue
+		for (const gap of personDayGaps.get(person)?.get(meeting.day) ?? []) {
+			if (isMeetingInGap(meeting, gap)) {
+				out.push(person)
 			}
 		}
 	}
@@ -250,8 +254,8 @@ function main() {
 		meetingFromIssue(calendarMeetingInfo, issue)))
 
 	const {
-		validMeetings: meetings,
-		// All of these are only used in the output stage...
+		validMeetings,
+		// All of the rest are only used in the output stage
 		cancelledMeetings,
 		movedMeetings,
 		invalidMeetings,
@@ -263,17 +267,19 @@ function main() {
 	const personDayGaps: PersonDayGaps = new Map()
 	const repoMeetings: RepoMeetings = new Map()
 
-	for (const meeting of meetings) {
+	// Track which people are assigned to which meetings, on which days.
+	// Also track which meetings came from which repo (to flag possible duplicates).
+	for (const meeting of validMeetings) {
 		for (const name of meeting.names) {
-			const equiv = equivalents.get(name) ?? name
+			const normalisedName = equivalents.get(name) ?? name
 
-			if (!personDayMeetings.has(equiv)) {
-				personDayMeetings.set(equiv, dayThings())
+			if (!personDayMeetings.has(normalisedName)) {
+				personDayMeetings.set(normalisedName, dayThings())
 			}
-			personDayMeetings.get(equiv)?.get(meeting.day)?.push(meeting)
+			personDayMeetings.get(normalisedName)?.get(meeting.day)?.push(meeting)
 
-			if (!personDayGaps.has(equiv)) {
-				personDayGaps.set(equiv, dayThings())
+			if (!personDayGaps.has(normalisedName)) {
+				personDayGaps.set(normalisedName, dayThings())
 			}
 		}
 
@@ -281,13 +287,17 @@ function main() {
 		addMeeting(repoMeetings, repo(meeting.issueUrl), meeting)
 	}
 
+	// Now figure out, for each person, each day, and each meeting:
+	// which other meetings they're assigned to clash for sure;
+	// and which other meetings are very nearby, so may clash in practice.
+
 	const peopleDefinitelyClashingMeetings: PersonClashingMeetings = new Map()
 	const peopleNearlyClashingMeetings: PersonClashingMeetings = new Map()
 
 	let haveDefinitelyClashing = false
 	let haveNearlyClashing = false
 
-	for (const [ name, dayMeetings ] of personDayMeetings) {
+	for (const [ person, dayMeetings ] of personDayMeetings) {
 		for (const [ day, meetings ] of dayMeetings) {
 			const workingDay = workingDayFrom(day)
 			let endOfLastMeeting = workingDay.start
@@ -302,11 +312,11 @@ function main() {
 
 					switch (clashes(meeting, other)) {
 						case Clash.DEFO:
-							addClashingMeeting(peopleDefinitelyClashingMeetings, name, meeting, other)
+							addClashingMeeting(peopleDefinitelyClashingMeetings, person, meeting, other)
 							haveDefinitelyClashing = true
 							break
 						case Clash.NEAR:
-							addClashingMeeting(peopleNearlyClashingMeetings, name, meeting, other)
+							addClashingMeeting(peopleNearlyClashingMeetings, person, meeting, other)
 							haveNearlyClashing = true
 							break
 					}
@@ -314,7 +324,7 @@ function main() {
 
 				// Detecting gaps between meetings
 				if (Temporal.PlainDateTime.compare(meeting.start, endOfLastMeeting) > 0) {
-					personDayGaps.get(name)?.get(day)?.push({
+					personDayGaps.get(person)?.get(day)?.push({
 						start: endOfLastMeeting,
 						end: meeting.start,
 					})
@@ -325,7 +335,7 @@ function main() {
 			}
 
 			if (Temporal.PlainDateTime.compare(endOfLastMeeting, workingDay.end) < 0) {
-				personDayGaps.get(name)?.get(day)?.push({
+				personDayGaps.get(person)?.get(day)?.push({
 					start: endOfLastMeeting,
 					end: workingDay.end,
 				})
@@ -333,10 +343,14 @@ function main() {
 		}
 	}
 
-	for (const meeting of meetings) {
+	// Now we have been through all people, days, and meetings.
+	// We can figure out, for all meetings, whom else could attend instead of those assigned.
+	for (const meeting of validMeetings) {
 		meeting.alternatives.push(...alternatives(args.alternatives!, personDayGaps, meeting))
 	}
 
+	// If multiple issues from the same repo reference the same meeting, they may be duplicates.
+	// They may not be duplicates, though: they may reference different sub-parts of the same meeting.
 	const repoPossibleDuplicates: RepoDuplicateMeetings = new Map()
 	for (const [ repo, meetings ] of repoMeetings) {
 		const grouped = Object.groupBy(meetings, meeting => meeting.calendarUrl)
@@ -347,7 +361,7 @@ function main() {
 		}
 	}
 
-	const html = makeHtml(invalidMeetings, meetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, MY_NAME)
+	const html = makeHtml(invalidMeetings, validMeetings, movedMeetings, repoPossibleDuplicates, unassignedMeetings, cancelledMeetings, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, equivalents, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps, args.style, MY_NAME)
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output)
