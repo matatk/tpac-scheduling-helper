@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { _parseBodyInfo } from './src/meeting-from-issue'
+import { _parseBodyInfo } from '../src/meeting-from-issue'
 
 describe('_parseBodyInfo()', () => {
 	test('well-formed info', () => {
