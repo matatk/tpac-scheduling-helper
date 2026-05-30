@@ -1,4 +1,4 @@
 node_modules/
-query-result.json
+*query-result.json
 schedule.html
 tpac.html
