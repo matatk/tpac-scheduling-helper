@@ -1,9 +1,9 @@
 import { Temporal } from '@js-temporal/polyfill'
 
-import { sort } from '../tsh.ts' // FIXME: remove need for this!
-
 import type { Day } from './day.ts'
 import type { Kind } from './kind.ts'
+
+const PDT = Temporal.PlainDateTime
 
 export interface Meeting {
 	tag: number
@@ -66,39 +66,44 @@ export function isMeeting(p: Partial<Meeting>): p is Meeting {
 // FIXME: Take gaps into account; maybe DRY with below
 export function isMeetingInGap(m: Meeting, g: Gap): boolean {
 	const buffer = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
-	return Temporal.PlainDateTime.compare(m.start, g.start) >= 0
-		  && Temporal.PlainDateTime.compare(m.start, g.end)   <= 0
-		  && Temporal.PlainDateTime.compare(m.end,   g.start) >= 0
-	    && Temporal.PlainDateTime.compare(m.end,   g.end)   <= 0
+	return PDT.compare(m.start, g.start) >= 0
+		  && PDT.compare(m.start, g.end)   <= 0
+		  && PDT.compare(m.end,   g.start) >= 0
+	    && PDT.compare(m.end,   g.end)   <= 0
 }
 
 export function clashes(a: Meeting, b: Meeting): ClashStatus {
 	const gap = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
 
+	// NOTE: Normalise meeting order based on start time
 	// TODO: Check if can be removed
-	const meetings = [ a, b ]
-	sort(meetings)
-	const [ m, o ] = meetings
+	const m = PDT.compare(a.start, b.start) <= 0 ? a : b
+	const o = PDT.compare(a.start, b.start) <= 0 ? b : a
 
-	if (Temporal.PlainDateTime.compare(m.start, o.start) >= 0
-	 && Temporal.PlainDateTime.compare(m.start, o.end)   <= 0) return Clash.DEFO
+	if (PDT.compare(m.start, o.start) >= 0
+	 && PDT.compare(m.start, o.end)   <= 0) return Clash.DEFO
 
 	// NOTE: Allow first meeting that ends as the second one starts to be a near clash
-	if (Temporal.PlainDateTime.compare(m.end,   o.start) >  0
-	 && Temporal.PlainDateTime.compare(m.end,   o.end)   <= 0) return Clash.DEFO
+	if (PDT.compare(m.end,   o.start) >  0
+	 && PDT.compare(m.end,   o.end)   <= 0) return Clash.DEFO
 
-	if (Temporal.PlainDateTime.compare(m.start, o.start.subtract(gap)) >= 0
-	 && Temporal.PlainDateTime.compare(m.start, o.end.add(gap))        <= 0) return Clash.NEAR
+	if (PDT.compare(m.start, o.start.subtract(gap)) >= 0
+	 && PDT.compare(m.start, o.end.add(gap))        <= 0) return Clash.NEAR
 
-	if (Temporal.PlainDateTime.compare(m.end,   o.start.subtract(gap)) >= 0
-	 && Temporal.PlainDateTime.compare(m.end,   o.end.add(gap))        <= 0) return Clash.NEAR
+	if (PDT.compare(m.end,   o.start.subtract(gap)) >= 0
+	 && PDT.compare(m.end,   o.end.add(gap))        <= 0) return Clash.NEAR
 
 	return Clash.NONE
 }
 
-export function timeMatch(calendarStart: Temporal.PlainDateTime, calendarEnd: Temporal.PlainDateTime, ourStart: Temporal.PlainDateTime, ourEnd: Temporal.PlainDateTime): MatchStatus {
-	const start = Temporal.PlainDateTime.compare(calendarStart, ourStart)
-	const end = Temporal.PlainDateTime.compare(calendarEnd, ourEnd)
+export function timeMatch(
+	calendarStart: Temporal.PlainDateTime,
+	calendarEnd: Temporal.PlainDateTime,
+	ourStart: Temporal.PlainDateTime,
+	ourEnd: Temporal.PlainDateTime
+): MatchStatus {
+	const start = PDT.compare(calendarStart, ourStart)
+	const end = PDT.compare(calendarEnd, ourEnd)
 
 	if (start === 0 && end === 0) return Match.EXACT
 	if (start <= 0 && end >= 0) return Match.SUBSET
