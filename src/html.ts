@@ -137,8 +137,12 @@ function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): stri
 	let html = '<ul>'
 	for (const [ day, meetings ] of dms) {
 		html += `<li>${pretty(day)}<ul>`
-		for (const meeting of meetings) {
-			html += listItemFor(meeting, false, equivalents)
+		if (meetings.length > 0) {
+			for (const meeting of meetings) {
+				html += listItemFor(meeting, false, equivalents)
+			}
+		} else {
+			html += '<p>(none)</p>'
 		}
 		html += '</ul></i>'
 	}
