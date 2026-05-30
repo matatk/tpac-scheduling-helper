@@ -8,12 +8,13 @@ import { Temporal } from '@js-temporal/polyfill'
 
 import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
-import { Days, isDay } from './src/day.ts'
+import { Days, isDay, startOfDayFrom } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
+import { Clash, clashes, isMeeting, isMeetingInGap, Match, sameActualMeeting, timeMatch } from './src/meetings.ts'
 
 import type { Day } from './src/day.ts'
 import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
-import type { Kind } from './src/kind.ts'
+import type { Meeting, Gap } from './src/meetings.ts'
 
 const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 
@@ -31,20 +32,6 @@ interface WorkingDay {
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
 }
-
-export const Match = {
-	EXACT: 'exact',
-	SUBSET: 'subset',
-	NOPE: 'nope',
-} as const
-type MatchStatus = typeof Match[keyof typeof Match]
-
-const Clash = {
-	NONE: 'No clash',
-	DEFO: 'CLASHES!',
-	NEAR: 'Mind Gap',
-} as const
-type ClashStatus = typeof Clash[keyof typeof Clash]
 
 interface GhIssue {
 	assignees: GhAssignee[]
@@ -70,144 +57,9 @@ interface GhBodyInfo {
 	notes?: string
 }
 
-export interface Meeting {
-	tag: number
-	kind: Kind
-	calendarTitle: string
-	title: string
-	calendarDay: Day
-	day: Day
-	calendarStart: Temporal.PlainDateTime
-	start: Temporal.PlainDateTime
-	calendarEnd: Temporal.PlainDateTime
-	end: Temporal.PlainDateTime
-	match: MatchStatus
-	calendarRoom: string
-	names: string[]
-	calendarUrl: string
-	issueUrl: string
-	alternatives: string[]
-	notes?: string
-}
-
-export interface Gap {
-	start: Temporal.PlainDateTime
-	end: Temporal.PlainDateTime
-}
-
 const myName = 'TPAC scheduling helper'
-let meetingCounter = 1
 let calendarMeetingInfo: GetCalendarMeetingInfo
-
-export function sort(activities: (Meeting | Gap)[]) {
-	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start))
-}
-
-function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
-	return new Map(Days.map(day => [ day, [] ]))
-}
-
-function errorOut(...args: any) {
-	console.error(...args)
-	process.exit(42)
-}
-
-export function repo(issueUrl: string): string {
-	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
-}
-
-function sameActualMeeting(meeting: Meeting, other: Meeting) {
-	return meeting.calendarUrl === other.calendarUrl &&
-		meeting.start.equals(other.start) &&
-		meeting.end.equals(other.end)
-}
-
-function addDayMeeting(map: Map<Day, Meeting[]>, day: Day, meeting: Meeting) {
-	if (map.has(day)) {
-		map.get(day)!.push(meeting)
-	} else {
-		map.set(day, [ meeting ])
-	}
-}
-
-function addRepoMeeting(map: Map<string, Meeting[]>, repo: string, meeting: Meeting) {
-	if (map.has(repo)) {
-		map.get(repo)!.push(meeting)
-	} else {
-		map.set(repo, [ meeting ])
-	}
-}
-
-function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string, m: Meeting, o: Meeting) {
-	if (!map.has(name)) {
-		map.set(name, new ClashingMeetingsSet())
-	}
-	map.get(name)!.add(m, o)
-}
-
-function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
-	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
-	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
-}
-
-function getIssues(repo: string, label: string): GhIssue[] {
-	const cmd = 'gh'
-	const args = [ '--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999' ]
-	console.log(cmd, args.join(' '))
-	const child = spawnSync(cmd, args)
-	if (child.error || child.status !== 0) {
-		errorOut('Error reported by gh:', child.stderr.toString())
-	}
-	try {
-		return JSON.parse(child.stdout.toString())
-	} catch (err) {
-		errorOut('Error parsing GitHub API result:', err instanceof Error ? err.message : err)
-	}
-	return []  // NOTE: Here for TypeScript
-}
-
-function extractBodyInfo(body: string): Partial<GhBodyInfo> {
-	// GitHub API line-ending weirdness: https://github.com/actions/runner/issues/1462#issuecomment-2676329157
-	const bodyLines = body.split(/\r?\n/)
-
-	const calendarUrl = bodyLines.shift()
-	const rawDay = bodyLines.shift()?.toLowerCase()
-	const day = isDay(rawDay) ? rawDay : undefined
-	const startOfDay = day ? startOfDayFrom(day) ?? undefined : undefined
-	const time = bodyLines.shift()
-	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
-	const start = startAndEnd?.[0]
-	const end = startAndEnd?.[1]
-	const extraPeopleOrBlank = bodyLines.shift()
-	const haveExtraLine = extraPeopleOrBlank && extraPeopleOrBlank.length > 0
-
-	const extraPeople = haveExtraLine
-		? extraPeopleOrBlank.replaceAll(',', '').replaceAll('@', '').split(/\s/)
-		: []
-
-	if (haveExtraLine) bodyLines.shift()  // Blank line after metadata
-
-	return { calendarUrl, day, startOfDay, start, end, extraPeople, notes: bodyLines.join('\n') }
-}
-
-function isMeeting(p: Partial<Meeting>): p is Meeting {
-	return !!p.tag &&
-		!!p.kind &&
-		!!p.calendarTitle &&
-		!!p.title &&
-		!!p.calendarDay &&
-		!!p.day &&
-		!!p.calendarStart &&
-		!!p.start &&
-		!!p.calendarEnd &&
-		!!p.end &&
-		!!p.match &&
-		!!p.calendarRoom &&
-		!!p.names &&
-		!!p.calendarUrl &&
-		!!p.issueUrl &&
-		!!p.alternatives
-}
+let meetingCounter = 1
 
 function meetingFromIssue(getter: GetCalendarMeetingInfo, issue: GhIssue): Meeting | Partial<Meeting> {
 	const bodyInfo = extractBodyInfo(issue.body)
@@ -246,13 +98,90 @@ function meetingFromIssue(getter: GetCalendarMeetingInfo, issue: GhIssue): Meeti
 	}
 }
 
-function timeMatch(calendarStart: Temporal.PlainDateTime, calendarEnd: Temporal.PlainDateTime, ourStart: Temporal.PlainDateTime, ourEnd: Temporal.PlainDateTime): MatchStatus {
-	const start = Temporal.PlainDateTime.compare(calendarStart, ourStart)
-	const end = Temporal.PlainDateTime.compare(calendarEnd, ourEnd)
+function extractBodyInfo(body: string): Partial<GhBodyInfo> {
+	// GitHub API line-ending weirdness: https://github.com/actions/runner/issues/1462#issuecomment-2676329157
+	const bodyLines = body.split(/\r?\n/)
 
-	if (start === 0 && end === 0) return Match.EXACT
-	if (start <= 0 && end >= 0) return Match.SUBSET
-	return Match.NOPE
+	const calendarUrl = bodyLines.shift()
+	const rawDay = bodyLines.shift()?.toLowerCase()
+	const day = isDay(rawDay) ? rawDay : undefined
+	const startOfDay = day ? startOfDayFrom(day) ?? undefined : undefined
+	const time = bodyLines.shift()
+	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
+	const start = startAndEnd?.[0]
+	const end = startAndEnd?.[1]
+	const extraPeopleOrBlank = bodyLines.shift()
+	const haveExtraLine = extraPeopleOrBlank && extraPeopleOrBlank.length > 0
+
+	const extraPeople = haveExtraLine
+		? extraPeopleOrBlank.replaceAll(',', '').replaceAll('@', '').split(/\s/)
+		: []
+
+	if (haveExtraLine) bodyLines.shift()  // Blank line after metadata
+
+	return { calendarUrl, day, startOfDay, start, end, extraPeople, notes: bodyLines.join('\n') }
+}
+
+
+function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
+	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
+	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
+}
+
+export function sort(activities: (Meeting | Gap)[]) {
+	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start))
+}
+
+function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
+	return new Map(Days.map(day => [ day, [] ]))
+}
+
+function errorOut(...args: any) {
+	console.error(...args)
+	process.exit(42)
+}
+
+export function repo(issueUrl: string): string {
+	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
+}
+
+function addDayMeeting(map: Map<Day, Meeting[]>, day: Day, meeting: Meeting) {
+	if (map.has(day)) {
+		map.get(day)!.push(meeting)
+	} else {
+		map.set(day, [ meeting ])
+	}
+}
+
+function addRepoMeeting(map: Map<string, Meeting[]>, repo: string, meeting: Meeting) {
+	if (map.has(repo)) {
+		map.get(repo)!.push(meeting)
+	} else {
+		map.set(repo, [ meeting ])
+	}
+}
+
+function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string, m: Meeting, o: Meeting) {
+	if (!map.has(name)) {
+		map.set(name, new ClashingMeetingsSet())
+	}
+	map.get(name)!.add(m, o)
+}
+
+function getIssues(repo: string, label: string): GhIssue[] {
+	const cmd = 'gh'
+	const args = [ '--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999' ]
+	console.log(cmd, args.join(' '))
+	const child = spawnSync(cmd, args)
+	if (child.error || child.status !== 0) {
+		errorOut('Error reported by gh:', child.stderr.toString())
+	}
+	try {
+		return JSON.parse(child.stdout.toString())
+	} catch (err) {
+		errorOut('Error parsing GitHub API result:', err instanceof Error ? err.message : err)
+	}
+	return []  // NOTE: Here for TypeScript
 }
 
 function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] {
@@ -269,54 +198,6 @@ function alternatives(alts: string[], pdg: PersonDayGaps, m: Meeting): string[] 
 	}
 
 	return out
-}
-
-// FIXME: Take gaps into account; maybe DRY with below
-function isMeetingInGap(m: Meeting, g: Gap): boolean {
-	const buffer = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
-	return Temporal.PlainDateTime.compare(m.start, g.start) >= 0
-		  && Temporal.PlainDateTime.compare(m.start, g.end)   <= 0
-		  && Temporal.PlainDateTime.compare(m.end,   g.start) >= 0
-	    && Temporal.PlainDateTime.compare(m.end,   g.end)   <= 0
-}
-
-function clashes(a: Meeting, b: Meeting): ClashStatus {
-	const gap = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
-
-	// TODO: Check if can be removed
-	const meetings = [ a, b ]
-	sort(meetings)
-	const [ m, o ] = meetings
-
-	if (Temporal.PlainDateTime.compare(m.start, o.start) >= 0
-	 && Temporal.PlainDateTime.compare(m.start, o.end)   <= 0) return Clash.DEFO
-
-	// NOTE: Allow first meeting that ends as the second one starts to be a near clash
-	if (Temporal.PlainDateTime.compare(m.end,   o.start) >  0
-	 && Temporal.PlainDateTime.compare(m.end,   o.end)   <= 0) return Clash.DEFO
-
-	if (Temporal.PlainDateTime.compare(m.start, o.start.subtract(gap)) >= 0
-	 && Temporal.PlainDateTime.compare(m.start, o.end.add(gap))        <= 0) return Clash.NEAR
-
-	if (Temporal.PlainDateTime.compare(m.end,   o.start.subtract(gap)) >= 0
-	 && Temporal.PlainDateTime.compare(m.end,   o.end.add(gap))        <= 0) return Clash.NEAR
-
-	return Clash.NONE
-}
-
-function startOfDayFrom(candidate: Day): Temporal.PlainDateTime {
-	switch (candidate) {
-		case 'monday':
-			return new Temporal.PlainDateTime(2025, 11, 10)
-		case 'tuesday':
-			return new Temporal.PlainDateTime(2025, 11, 11)
-		case 'wednesday':
-			return new Temporal.PlainDateTime(2025, 11, 12)
-		case 'thursday':
-			return new Temporal.PlainDateTime(2025, 11, 13)
-		case 'friday':
-			return new Temporal.PlainDateTime(2025, 11, 14)
-	}
 }
 
 function workingDayFrom(day: Day): WorkingDay {
@@ -418,7 +299,7 @@ function main() {
 			errorOut('Every \'equivalent\' option value must be a pair of two usernames to consider equal. The values specified were:', args.combine)
 		}
 		for (const [ name, otherName ] of args.combine) {
-			equivalents.set(name, otherName)
+			equivalents.set(name!, otherName!)
 		}
 	}
 
@@ -444,7 +325,7 @@ function main() {
 		}
 		// NOTE: TypeScript doesn't seem to know it, but at this point we know that args.repo is an array of 1- or 2-value arrays.
 		for (const repoLabel of args.repo) {
-			issues.push(...getIssues(repoLabel[0], repoLabel[1] ?? args.label))
+			issues.push(...getIssues(repoLabel[0]!, repoLabel[1] ?? args.label))
 		}
 	}
 
