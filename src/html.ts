@@ -26,7 +26,7 @@ export function makeHtml(
 	haveNearlyClashing: boolean,
 	personDayGaps:PersonDayGaps,
 	style: string,
-	myName: string
+	myName: string,
 ) {
 	const haveInvalid = invalidMeetings.length > 0
 	const haveMeetings = meetings.length > 0

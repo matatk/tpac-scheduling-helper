@@ -1,13 +1,15 @@
 import { Temporal } from '@js-temporal/polyfill'
 
-import { isDay, startOfDayFrom } from './day.ts'
+import { isDay } from './day.ts'
 import { timeMatch } from './meeting.ts'
 
 import type { GetCalendarMeetingInfo } from './calendar-meeting-info.ts'
 import type { GhIssue } from '../tsh.ts'
 import type { Meeting } from './meeting.ts'
 import type { Day } from './day.ts'
+import type { TpacDays } from './tpacs.ts'
 
+// TODO: Do we need these to be PlainDateTimes?
 interface ParsedGhBodyInfo {
 	calendarUrl: string
 	day: Day
@@ -19,15 +21,18 @@ interface ParsedGhBodyInfo {
 
 let meetingCounter = 1
 
-export default function meetingFromIssue(getter: GetCalendarMeetingInfo, issue: GhIssue): Meeting | Partial<Meeting> {
-	const bodyInfo = _parseBodyInfo(issue.body)
+export default function meetingFromIssue(
+	tpac: TpacDays,
+	getter: GetCalendarMeetingInfo,
+	issue: GhIssue,
+): Meeting | Partial<Meeting> {
+	const bodyInfo = _parseBodyInfo(tpac, issue.body)
 	bodyInfo.extraPeople ??= []
 
 	const names = issue.assignees.map(assignee => assignee.login)
 	const calendarInfo = getter(bodyInfo.calendarUrl ?? '')
 
-	const startOfDay = calendarInfo?.day ?
-		startOfDayFrom(calendarInfo.day) : undefined
+	const startOfDay = calendarInfo?.day ? tpac[calendarInfo.day].midnight : undefined
 	const calendarStart = startOfDay && calendarInfo?.start ?
 		timeStringToPlainDateTime(startOfDay, calendarInfo.start) : undefined
 	const calendarEnd = startOfDay && calendarInfo?.end ?
@@ -56,14 +61,14 @@ export default function meetingFromIssue(getter: GetCalendarMeetingInfo, issue: 
 	}
 }
 
-export function _parseBodyInfo(body: string): Partial<ParsedGhBodyInfo> {
+export function _parseBodyInfo(tpac: TpacDays, body: string): Partial<ParsedGhBodyInfo> {
 	// GitHub API line-ending weirdness: https://github.com/actions/runner/issues/1462#issuecomment-2676329157
 	const bodyLines = body.split(/\r?\n/)
 
 	const calendarUrl = bodyLines.shift()
 	const rawDay = bodyLines.shift()?.toLowerCase()
 	const day = isDay(rawDay) ? rawDay : undefined
-	const startOfDay = day ? startOfDayFrom(day) ?? undefined : undefined
+	const startOfDay = day ? tpac[day].midnight ?? undefined : undefined
 	const time = bodyLines.shift()
 	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
 	const start = startAndEnd?.[0]

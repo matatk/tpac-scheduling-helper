@@ -4,6 +4,36 @@ import { Temporal } from '@js-temporal/polyfill'
 
 import { _parseBodyInfo } from '../src/meeting-from-issue'
 
+import type { TpacDays } from '../src/tpacs'
+
+const tpac2025: TpacDays = {
+	monday: {
+		midnight: new Temporal.PlainDateTime(2025, 11, 10),
+		   start: new Temporal.PlainDateTime(2025, 11, 10, 9),
+		     end: new Temporal.PlainDateTime(2025, 11, 10, 18),
+	},
+	tuesday: {
+		midnight: new Temporal.PlainDateTime(2025, 11, 11),
+		   start: new Temporal.PlainDateTime(2025, 11, 11,  8, 30),
+		     end: new Temporal.PlainDateTime(2025, 11, 11, 18, 30),
+	},
+	wednesday: {
+		midnight: new Temporal.PlainDateTime(2025, 11, 12),
+		   start: new Temporal.PlainDateTime(2025, 11, 12,  8, 30),
+		     end: new Temporal.PlainDateTime(2025, 11, 12, 20, 30),
+	},
+	thursday: {
+		midnight: new Temporal.PlainDateTime(2025, 11, 13),
+		   start: new Temporal.PlainDateTime(2025, 11, 13, 7, 30),
+		     end: new Temporal.PlainDateTime(2025, 11, 13, 18),
+	},
+	friday: {
+		midnight: new Temporal.PlainDateTime(2025, 11, 14),
+		   start: new Temporal.PlainDateTime(2025, 11, 14, 9),
+		     end: new Temporal.PlainDateTime(2025, 11, 14, 18),
+	},
+} as const
+
 describe('_parseBodyInfo()', () => {
 	test('well-formed info', () => {
 		const fixture = `https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/
@@ -12,7 +42,7 @@ Monday
 
 Test for attending the whole session.`
 
-		expect(_parseBodyInfo(fixture)).toStrictEqual({
+		expect(_parseBodyInfo(tpac2025, fixture)).toStrictEqual({
 			calendarUrl: 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/',
 			day: 'monday',
 			start: new Temporal.PlainDateTime(2025, 11, 10, 13, 45),
@@ -25,7 +55,7 @@ Test for attending the whole session.`
 	test('invalid, only URL', () => {
 		const fixture = 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/'
 
-		expect(_parseBodyInfo(fixture)).toStrictEqual({
+		expect(_parseBodyInfo(tpac2025, fixture)).toStrictEqual({
 			calendarUrl: 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/',
 			day: undefined,
 			start: undefined,

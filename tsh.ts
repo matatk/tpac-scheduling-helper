@@ -5,17 +5,19 @@ import { spawnSync } from 'child_process'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 import { Temporal } from '@js-temporal/polyfill'
+import TPACs from './src/tpacs.ts'
 
 import meetingFromIssue from './src/meeting-from-issue.ts'
 import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
-import { Days, startOfDayFrom } from './src/day.ts'
+import { Days } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
 import { Clash, categoriseMeetings, clashes, isMeetingInGap, sameActualMeeting } from './src/meeting.ts'
+import { TpacYears } from './src/tpacs.ts'
 
 import type { Day } from './src/day.ts'
-import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
 import type { Gap, Meeting } from './src/meeting.ts'
+import type { TpacYear } from './src/tpacs.ts'
 
 export type CombinedNames = Map<string, string>
 type DayThings<T> = Map<Day, T[]>
@@ -41,15 +43,7 @@ interface GhAssignee {
 	databaseId: number
 }
 
-interface WorkingDay {
-	start: Temporal.PlainDateTime
-	end: Temporal.PlainDateTime
-}
-
 const MY_NAME = 'TPAC scheduling helper'
-const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
-
-let calendarMeetingInfo: GetCalendarMeetingInfo
 
 function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
 	return new Map(Days.map(day => [ day, [] ]))
@@ -98,7 +92,7 @@ function getIssues(repo: string, label: string): GhIssue[] {
 function alternatives(
 	possibleAlternatives: string[],
 	personDayGaps: PersonDayGaps,
-	meeting: Meeting
+	meeting: Meeting,
 ): string[] {
 	const out: string[] = []
 
@@ -113,14 +107,6 @@ function alternatives(
 	}
 
 	return out
-}
-
-function workingDayFrom(day: Day): WorkingDay {
-	const midnight = startOfDayFrom(day)
-	return {
-		start: midnight.add(Temporal.Duration.from({ hours: 8, minutes: 30 })),
-		end: midnight.add(Temporal.Duration.from({ hours: 22, minutes: 30 })),
-	}
 }
 
 function getArgs() {
@@ -191,6 +177,12 @@ function getArgs() {
 			description: 'Name of CSS file for styling the HTML output. This will be written directly into the output HTML.',
 			default: 'style.css',
 		})
+		.option('year', {
+			alias: 'y',
+			choices: TpacYears,
+			description: 'Which TPAC year to use (defaults to the latest year)',
+			default: TpacYears.at(-1),
+		})
 		.conflicts('query-result', 'save-result')
 		.strict()
 		.check(args => {
@@ -203,6 +195,9 @@ function getArgs() {
 function main() {
 	const args = getArgs()
 	const equivalents: CombinedNames = new Map()
+	const issues: GhIssue[] = []
+	const tpac = TPACs[`tpac${args.year!}`]
+	const calendarMeetingInfo = makeCalendarMeetingInfoGetter(tpac.schedule, args.meetings)
 
 	// FIXME: Figure out TypeScript/yargs workaround, and DRY with the below
 	if (args.combine) {
@@ -217,10 +212,6 @@ function main() {
 			equivalents.set(name!, otherName!)
 		}
 	}
-
-	calendarMeetingInfo = makeCalendarMeetingInfoGetter(SCHEDULE_URL, args.meetings)
-
-	const issues: GhIssue[] = []
 
 	if (args.queryResult) {
 		console.log('Using existing query result.')
@@ -250,7 +241,7 @@ function main() {
 	}
 
 	const allMeetings = issues.map((issue =>
-		meetingFromIssue(calendarMeetingInfo, issue)))
+		meetingFromIssue(tpac.days, calendarMeetingInfo, issue)))
 
 	const {
 		validMeetings,
@@ -298,7 +289,7 @@ function main() {
 
 	for (const [ person, dayMeetings ] of personDayMeetings) {
 		for (const [ day, meetings ] of dayMeetings) {
-			const workingDay = workingDayFrom(day)
+			const workingDay = tpac.days[day]
 			let endOfLastMeeting = workingDay.start
 
 			for (const meeting of meetings) {
