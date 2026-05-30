@@ -75,8 +75,7 @@ export function isMeetingInGap(m: Meeting, g: Gap): boolean {
 export function clashes(a: Meeting, b: Meeting): ClashStatus {
 	const gap = Temporal.Duration.from({ minutes: 10 })  // FIXME: DRY
 
-	// NOTE: Normalise meeting order based on start time
-	// TODO: Check if can be removed
+	// Normalise meeting order based on start time
 	const m = PDT.compare(a.start, b.start) <= 0 ? a : b
 	const o = PDT.compare(a.start, b.start) <= 0 ? b : a
 
@@ -100,7 +99,7 @@ export function timeMatch(
 	calendarStart: Temporal.PlainDateTime,
 	calendarEnd: Temporal.PlainDateTime,
 	ourStart: Temporal.PlainDateTime,
-	ourEnd: Temporal.PlainDateTime
+	ourEnd: Temporal.PlainDateTime,
 ): MatchStatus {
 	const start = PDT.compare(calendarStart, ourStart)
 	const end = PDT.compare(calendarEnd, ourEnd)

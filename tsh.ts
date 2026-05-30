@@ -10,11 +10,11 @@ import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
 import { Days, isDay, startOfDayFrom } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
-import { Clash, clashes, isMeeting, isMeetingInGap, Match, sameActualMeeting, timeMatch } from './src/meetings.ts'
+import { Clash, Match, clashes, isMeeting, isMeetingInGap, sameActualMeeting, timeMatch } from './src/meeting.ts'
 
 import type { Day } from './src/day.ts'
 import type { GetCalendarMeetingInfo } from './src/calendar-meeting-info.ts'
-import type { Meeting, Gap } from './src/meetings.ts'
+import type { Gap, Meeting } from './src/meeting.ts'
 
 const SCHEDULE_URL = 'https://www.w3.org/2025/11/TPAC/schedule.html'
 

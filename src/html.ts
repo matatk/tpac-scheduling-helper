@@ -2,12 +2,12 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { sort, repo } from '../tsh.ts'
-import { Match } from './meetings.ts'
+import { repo, sort } from '../tsh.ts'
+import { Match } from './meeting.ts'
 
-import type { RepoDuplicateMeetings, PersonClashingMeetings, PersonDayMeetings, PersonDayGaps, DayMeetings, CombinedNames } from '../tsh.ts'
+import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from '../tsh.ts'
 import type { Day } from './day.ts'
-import type { Gap, Meeting } from './meetings.ts'
+import type { Gap, Meeting } from './meeting.ts'
 
 export function makeHtml(invalidMeetings: Partial<Meeting>[], meetings: Meeting[], movedMeetings: Meeting[], repoPossibleDuplicates: RepoDuplicateMeetings, unassignedMeetings: Meeting[], cancelledMeetings: Partial<Meeting>[], peopleNearlyClashingMeetings: PersonClashingMeetings, peopleDefinitelyClashingMeetings: PersonClashingMeetings, personDayMeetings: PersonDayMeetings, equivalents: CombinedNames, dayMeetings:DayMeetings, haveDefinitelyClashing: boolean, haveNearlyClashing: boolean, personDayGaps:PersonDayGaps, style: string, myName: string) {
 	const haveInvalid = invalidMeetings.length > 0
