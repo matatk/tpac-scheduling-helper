@@ -1,14 +1,24 @@
 # TPAC scheduling helper
 
-This tool is designed to help you plan a small group's attendance of W3C TPAC 2025. The idea is that you can file issues in a GitHub repo that correspond to meetings (or parts of meetings) that you would like to attend, and you can attach notes as to what you'd like to contribute etc.
+This tool is designed to help you plan a small group's attendance of [W3C TPAC](https://www.w3.org/news-events/tpac/).
 
-The tool can be run every so-often to check...
+The idea is that you file issues in a GitHub repo that correspond to meetings (or parts of meetings) that you would like to attend, and you can attach notes as to what you'd like to contribute etc. You can then run the tool every so-often to check...
 
 * ...if the TPAC schedule has changed relative to your plans.
 
-* ...whether you have any clashes between meetings you plan to attend. It also checks for 'near clashes', which is where there's a 10-minute (or less) gap between your planned meeting attendances.
+* ...whether you have any clashes between meetings you plan to attend. (The tool also checks for 'near clashes', which is where there are only small gaps between your planned meeting attendances.)
+
+## Example use cases
+
+* You are planning attendance within a W3C group, for the people from that group who are attending.
+
+* You are planning attendance for a team from your organisation, where each person may be in one or more W3C groups.
 
 ## Prerequisites
+
+The tool relies on the published TPAC schedule for a given year.
+
+Technical dependencies are:
 
 * Node
 
@@ -26,14 +36,22 @@ The tool can be run every so-often to check...
 
 ## How to use
 
-1. File issues in a GitHub repo according to the format outlined below.
+1. File issues in a GitHub repo according to the format outlined below. These issues tell the tool which meetings (or parts of meetings) you want to attend.
 
-2. Run the script. It will download the latest TPAC schedule as an HTML file - or re-use an existing copy. It will check for potentially moved meeting slots, and scheduling conflicts. Output will be printed in the terminal, and an HTML file will be written that presents the information in what may be a more usable way.
+2. Run the script, which will:
+
+   - Download the latest TPAC schedule (from the W3C Team) as an HTML file, or it will re-use an existing copy.
+	
+   - Check for scheduling conflicts, and for meetings that may have been moved.
+
+   - Output an HTML file that covers your group's attendance, and provides warnings for individuals about potentially clashing meetings, plus a timetable for each person.
 
 3. Repeat whenever you like.
 
 > [!NOTE]
-> The tool is capable of recognising the case where you plan to attend only _part_ of a meeting, but as the meeting's agenda is a free text field, with no established format (or a link to some other URL), it can't check whether the particular slot within the larger meeting is still as you planned, so you'll need to check those things manually. (The tool will, however, remind you of that.)
+> The tool is capable of recognising the case where you plan to attend only _part_ of a meeting. However, the meeting's agenda in the calendar is a free text field, and may also link to other pages.
+>
+> Thus, the tool can't check whether a particular slot you plan to attend within a larger meeting has moved, so you'll need to check those cases manually. (The tool will, however, remind you of that.)
 
 ### Example usage
 
@@ -50,32 +68,63 @@ Use the `--help` option for a lot more info.
 
 ## GitHub issue format
 
-The issue title will be displayed in the output, but less prominently than the W3C Calendar meeting title. This ensures everyone has a consistent name for the meeting. But you can use the issue title to emphasise, for example, the part of the meeting you want to attend.
+You indicate which meetings you, or your group, wishes to attend by filing GitHub issues. You can file them in any repo, though you may find it neater to create a specific repo for TPAC meetings, or each year's TPAC meetings.
 
-The issue's assignees are the people you would like to attend the meeting. Making assignments is the recommended way to link people to the meeting, but GitHub has a 10-person assignee limit: if needed, you can supply a list of extra assignees in the body text of the first comment, per the format described below. If you don't assign anyone (maybe because of clashes) the issue will still be processed, and will be flagged as needing people assigned to it.
+The **title** of the issue is used (but displayed with less prominence than the W3C Calendar title for the meeting).
 
-The body of the first comment on the issue needs to match the following format:
+The **body of the first comment on the issue thread** needs to match the following format:
 
 ```
 <W3C Calendar URL for the meeting>
 <day name (monday, tuesday, wednesday, thursday, friday)>
 <start time (24-hour, HH:MM)> - <end time (24-hour, HH:MM)>
-[optional list of GitHub usernames of additional attendees (only 10 people can be assigned to a GitHub issue)]
+[optional list of GitHub usernames of additional attendees (see notes below!)]
 
 [optional further lines containing your notes on the meeting]
 ```
 
-You need to specify the day _and_ time in the issue so that the script can detect when a session has moved.
+Here's an example:
 
-The time should be in 24-hour format, with a colon (i.e. 'HH:MM').
+```
+https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/
+Monday
+13:45 - 15:00
 
-The bit between the start and end times can be either a plain hyphen or an en-dash and the spaces are optional.
+* Recapping our plans for the week
+* Upcoming internal work (review guide, FAST, ...)
+* Planning the week in more details (incl. ARIA and MEIG & TTWG agenda)
+* Any other business
+```
 
-As noted above, you can specify that you only want to attend part of a meeting, but you'll need to check the agenda manually.
+Some notes on the formatting of the issue:
 
-When specifying additional attendees via the body text of the comment, the at signs are optional.
+* **Issue title:** The tool displays the W3C Calendar meeting title most prominently, treating it as the single point of truth. However, the title you give to your planning issues is displayed (less prominently) too.
+
+  You could use the title of your issue to provide a brief description of why you're attending that meeting (particularly applicable for when you are planning to attend a specific part of a meeting).
+
+* **Day and time:** You need to specify both the day _and_ the time you plan to attend, so that the script can detect when a session has moved, or that you are planning to attend part of a meeting.
+
+  The day name can be capitalised.
+
+* **Time format:** The time should be in 24-hour format, with a colon (i.e. 'HH:MM').
+
+  The bit between the start and end times can be either a plain hyphen or an en-dash and the spaces are optional.
+
+  As noted above, you can specify that you only want to attend part of a meeting, but you'll need to check the agenda manually.
+
+* **Optional additional attendees line:** You can only officially/semantically assign 10 people to a GitHub issue. If you need to indicate that more than 10 people will attend the meeting, you can add them to the issue comment, as indicated above. When doing this, the '@' symbols are optional.
+
+  It's recommended that you use GitHub issue assignments wherever possible.
+
+The tool will indicate in its output if it has encountered issues that don't match this format.
 
 ## Advanced usage
+
+### Attending part(s) of meetings
+
+You can file as many planning issues as you like, and they can cover the whole, or a part, of a given official TPAC meeting.
+
+You can file multiple issues that reference the same calendared TPAC meeting (or parts thereof).
 
 ### Querying multiple repos
 
@@ -84,14 +133,20 @@ You can query across multiple GitHub repos in order to find scheduling issues. T
 * Pass multiple `--repo` options, each giving a GitHub repo's shortname or URL. In this case, the default label (or that specified via `--label` will be used for the queries). For example:
 
 	```sh
-	tpac-scheduling-helper --repo matatk/tpac-scheduling-helper --repo w3c/apa ...
+	tpac-scheduling-helper \
+		--repo matatk/tpac-scheduling-helper \
+		--repo w3c/apa
 	```
 
 * For each `--repo` option, pass both a repo (shortname or URL) _and_ label. This will override the default (or `--label`) issue label for querying that repo. For example:
 
 	```sh
-	tpac-scheduling-helper --repo matatk/tpac-scheduling-helper tpac-2025 --repo w3c/apa ...
+	tpac-scheduling-helper \
+		--repo matatk/tpac-scheduling-helper tpac-2025 \
+		--repo w3c/apa
 	```
+
+The script will warn you if you reference the same calendared TPAC meeting from multiple issues in the same repo, in case they're unintended duplicates. (It won't warn you if you reference the same TPAC meeting from multiple issues _across_ repos.)
 
 ### Combining GitHub usernames
 
@@ -111,6 +166,8 @@ If you're doing scheduling for a small group, but are referring to meeting issue
 
 ## Future plans
 
-* Output improvements based on the experience of using it this year.
+* Further improvements in the output HTML.
 
-* Investigate wether there is/could be an API for querying the W3C Calendar - or at least a neater way to get the data.
+* (Possibly) using the GitHub API directly.
+
+* Investigate wether there is/could be an API for querying the W3C Calendar.
