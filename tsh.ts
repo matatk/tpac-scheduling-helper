@@ -1,111 +1,26 @@
 #!/usr/bin/env node
 import fs from 'fs'
-import { spawnSync } from 'child_process'
 
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-import { Temporal } from '@js-temporal/polyfill'
+
 import TPACs from './src/tpacs.ts'
-
+import processSchedule from './src/scheduling.ts'
 import meetingFromIssue from './src/meeting-from-issue.ts'
-import ClashingMeetingsSet from './src/clashing-meetings-set.ts'
 import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
-import { Days } from './src/day.ts'
 import { makeHtml } from './src/html.ts'
-import { Clash, categoriseMeetings, clashes, isMeetingInGap, sameActualMeeting } from './src/meeting.ts'
 import { TpacYears } from './src/tpacs.ts'
+import { categoriseMeetings } from './src/meeting.ts'
+import getIssues from './src/get-issues.ts'
 
-import type { Day } from './src/day.ts'
-import type { Gap, Meeting } from './src/meeting.ts'
-
-export type CombinedNames = Map<string, string>
-type DayThings<T> = Map<Day, T[]>
-export type DayMeetings = DayThings<Meeting>
-type DayGaps = DayThings<Gap>
-export type PersonDayMeetings = Map<string, DayMeetings>
-export type PersonClashingMeetings = Map<string, ClashingMeetingsSet>
-export type PersonDayGaps = Map<string, DayGaps>
-type RepoMeetings = Map<string, Meeting[]>
-export type RepoDuplicateMeetings = Map<string, Meeting[][]>
-
-export interface GhIssue {
-	assignees: GhAssignee[]
-	body: string
-	title: string
-	url: string
-}
-
-interface GhAssignee {
-	id: string
-	login: string
-	name: string
-	databaseId: number
-}
+import type { CombinedNames } from './src/scheduling.ts'
+import type { GhIssue } from './src/get-issues.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
-
-function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
-	return new Map(Days.map(day => [ day, [] ]))
-}
 
 function errorOut(...args: any) {
 	console.error(...args)
 	process.exit(42)
-}
-
-export function repo(issueUrl: string): string {
-	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
-}
-
-function addMeeting<T extends Day | string>(map: Map<T, Meeting[]>, key: T, meeting: Meeting) {
-	if (map.has(key)) {
-		map.get(key)!.push(meeting)
-	} else {
-		map.set(key, [ meeting ])
-	}
-}
-
-function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string, m: Meeting, o: Meeting) {
-	if (!map.has(name)) {
-		map.set(name, new ClashingMeetingsSet())
-	}
-	map.get(name)!.add(m, o)
-}
-
-function getIssues(repo: string, label: string): GhIssue[] {
-	const cmd = 'gh'
-	const args = [ '--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999' ]
-	console.log(cmd, args.join(' '))
-	const child = spawnSync(cmd, args)
-	if (child.error || child.status !== 0) {
-		errorOut('Error reported by gh:', child.stderr.toString())
-	}
-	try {
-		return JSON.parse(child.stdout.toString())
-	} catch (err) {
-		errorOut('Error parsing GitHub API result:', err instanceof Error ? err.message : err)
-	}
-	return []  // NOTE: Here for TypeScript
-}
-
-function alternatives(
-	possibleAlternatives: string[],
-	personDayGaps: PersonDayGaps,
-	meeting: Meeting,
-): string[] {
-	const out: string[] = []
-
-	for (const person of personDayGaps.keys()) {
-		if (meeting.names.includes(person)) continue
-		if (possibleAlternatives.length > 0 && !possibleAlternatives.includes(person)) continue
-		for (const gap of personDayGaps.get(person)?.get(meeting.day) ?? []) {
-			if (isMeetingInGap(meeting, gap)) {
-				out.push(person)
-			}
-		}
-	}
-
-	return out
 }
 
 function getArgs() {
@@ -134,7 +49,7 @@ function getArgs() {
 			alias: 'c',
 			type: 'string',
 			array: true,
-			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n'
+			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n',
 		})
 		.example('--combine TopSecretAnna PublicAnna', 'Any instance of TopSecretAnna will be considered as PublicAnna.\n')
 		.option('label', {
@@ -179,18 +94,18 @@ function getArgs() {
 		.option('query-result', {
 			alias: 'q',
 			type: 'string',
-			description: 'Path to local JSON file that contains issues returned in GitHub API query responses. Overrides --repo.\n'
+			description: 'Path to local JSON file that contains issues returned in GitHub API query responses. Overrides --repo.\n',
 		})
 		.option('save-result', {
 			alias: 'S',
 			type: 'string',
 			description: 'Path to local JSON file to save all issues returned from all GitHub API query responses.\n',
 		})
-		.group(['meetings', 'output', 'repo'], 'Vital info:')
-		.group(['alternatives', 'combine', 'label'], 'Issue/filtering options:')
-		.group(['style'], 'Output options:')
-		.group(['save-result', 'query-result', 'year'], 'Testing and debugging options:')
-		.group(['help', 'version'], 'Workhorses:')
+		.group([ 'meetings', 'output', 'repo' ], 'Vital info:')
+		.group([ 'alternatives', 'combine', 'label' ], 'Issue/filtering options:')
+		.group([ 'style' ], 'Output options:')
+		.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
+		.group([ 'help', 'version' ], 'Workhorses:')
 		.conflicts('query-result', 'save-result')
 		.strict()
 		.check(args => {
@@ -199,7 +114,7 @@ function getArgs() {
 		})
 		.check(args => {
 			if (!args.repo && !args['query-result']) {
-				throw new Error("One of '--repo' and '--query-result' must be supplied.")
+				throw new Error('One of \'--repo\' and \'--query-result\' must be supplied.')
 			}
 			return true
 		})
@@ -245,7 +160,11 @@ function main() {
 		}
 		// NOTE: TypeScript doesn't seem to know it, but at this point we know that args.repo is an array of 1- or 2-value arrays.
 		for (const repoLabel of args.repo) {
-			issues.push(...getIssues(repoLabel[0]!, repoLabel[1] ?? args.label))
+			try {
+				issues.push(...getIssues(repoLabel[0]!, repoLabel[1] ?? args.label))
+			} catch (err) {
+				errorOut(err)
+			}
 		}
 	}
 
@@ -266,104 +185,16 @@ function main() {
 		unassignedMeetings,
 	} = categoriseMeetings(allMeetings)
 
-	const dayMeetings: DayMeetings = dayThings<Meeting>()
-	const personDayMeetings: PersonDayMeetings = new Map()
-	const personDayGaps: PersonDayGaps = new Map()
-	const repoMeetings: RepoMeetings = new Map()
-
-	// Track which people are assigned to which meetings, on which days.
-	// Also track which meetings came from which repo (to flag possible duplicates).
-	for (const meeting of validMeetings) {
-		for (const name of meeting.names) {
-			const normalisedName = equivalents.get(name) ?? name
-
-			if (!personDayMeetings.has(normalisedName)) {
-				personDayMeetings.set(normalisedName, dayThings())
-			}
-			personDayMeetings.get(normalisedName)?.get(meeting.day)?.push(meeting)
-
-			if (!personDayGaps.has(normalisedName)) {
-				personDayGaps.set(normalisedName, dayThings())
-			}
-		}
-
-		addMeeting(dayMeetings, meeting.calendarDay, meeting)
-		addMeeting(repoMeetings, repo(meeting.issueUrl), meeting)
-	}
-
-	// Now figure out, for each person, each day, and each meeting:
-	// which other meetings they're assigned to clash for sure;
-	// and which other meetings are very nearby, so may clash in practice.
-
-	const peopleDefinitelyClashingMeetings: PersonClashingMeetings = new Map()
-	const peopleNearlyClashingMeetings: PersonClashingMeetings = new Map()
-
-	let haveDefinitelyClashing = false
-	let haveNearlyClashing = false
-
-	for (const [ person, dayMeetings ] of personDayMeetings) {
-		for (const [ day, meetings ] of dayMeetings) {
-			const workingDay = tpac.days[day]
-			let endOfLastMeeting = workingDay.start
-
-			for (const meeting of meetings) {
-				// Detecting clashes
-				for (const other of meetings) {
-					if (meeting === other) continue
-
-					// Cope with the case that the same meeting has been specified in multiple repos.
-					if (sameActualMeeting(meeting, other)) continue
-
-					switch (clashes(meeting, other)) {
-						case Clash.DEFO:
-							addClashingMeeting(peopleDefinitelyClashingMeetings, person, meeting, other)
-							haveDefinitelyClashing = true
-							break
-						case Clash.NEAR:
-							addClashingMeeting(peopleNearlyClashingMeetings, person, meeting, other)
-							haveNearlyClashing = true
-							break
-					}
-				}
-
-				// Detecting gaps between meetings
-				if (Temporal.PlainDateTime.compare(meeting.start, endOfLastMeeting) > 0) {
-					personDayGaps.get(person)?.get(day)?.push({
-						start: endOfLastMeeting,
-						end: meeting.start,
-					})
-				}
-				if (Temporal.PlainDateTime.compare(meeting.end, endOfLastMeeting) > 0) {
-					endOfLastMeeting = meeting.end
-				}
-			}
-
-			if (Temporal.PlainDateTime.compare(endOfLastMeeting, workingDay.end) < 0) {
-				personDayGaps.get(person)?.get(day)?.push({
-					start: endOfLastMeeting,
-					end: workingDay.end,
-				})
-			}
-		}
-	}
-
-	// Now we have been through all people, days, and meetings.
-	// We can figure out, for all meetings, whom else could attend instead of those assigned.
-	for (const meeting of validMeetings) {
-		meeting.alternatives.push(...alternatives(args.alternatives!, personDayGaps, meeting))
-	}
-
-	// If multiple issues from the same repo reference the same meeting, they may be duplicates.
-	// They may not be duplicates, though: they may reference different sub-parts of the same meeting.
-	const repoPossibleDuplicates: RepoDuplicateMeetings = new Map()
-	for (const [ repo, meetings ] of repoMeetings) {
-		const grouped = Object.groupBy(meetings, meeting => meeting.calendarUrl)
-		const possibleDupes = Object.values(grouped).filter(group => group && group.length > 1)
-		if (possibleDupes.length > 0) {
-			// TODO: the handling of undefined as a possibility seems a bit kludgy here
-			repoPossibleDuplicates.set(repo, possibleDupes.filter(v => !!v))
-		}
-	}
+	const {
+		repoPossibleDuplicates,
+		peopleNearlyClashingMeetings,
+		peopleDefinitelyClashingMeetings,
+		personDayMeetings,
+		dayMeetings,
+		haveDefinitelyClashing,
+		haveNearlyClashing,
+		personDayGaps,
+	} = processSchedule(tpac.days, equivalents, args.alternatives!, validMeetings)
 
 	const html = makeHtml(invalidMeetings,
 		validMeetings,
