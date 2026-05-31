@@ -22,6 +22,8 @@ The tool can be run every so-often to check...
 
 2. `npm install`
 
+3. `npm link` (this will put `tpac-scheduling-helper` on your path, so you can run it from anywhere)
+
 ## How to use
 
 1. File issues in a GitHub repo according to the format outlined below.
@@ -38,11 +40,13 @@ The tool can be run every so-often to check...
 There's a repo containing some example (and test) TPAC planning issues. You can try out the tool on that repo by invoking it like this (on Unix-like OSes):
 
 ```sh
-./tsh.ts \
+tpac-scheduling-helper \
 	--repo matatk/tpac-scheduling-helper-test-issues-1 \
 	--meetings schedule.html \
 	--output tpac.html
 ```
+
+Use the `--help` option for a lot more info.
 
 ## GitHub issue format
 
@@ -80,13 +84,13 @@ You can query across multiple GitHub repos in order to find scheduling issues. T
 * Pass multiple `--repo` options, each giving a GitHub repo's shortname or URL. In this case, the default label (or that specified via `--label` will be used for the queries). For example:
 
 	```sh
-	./tsh.ts --repo matatk/tpac-scheduling-helper --repo w3c/apa ...
+	tpac-scheduling-helper --repo matatk/tpac-scheduling-helper --repo w3c/apa ...
 	```
 
 * For each `--repo` option, pass both a repo (shortname or URL) _and_ label. This will override the default (or `--label`) issue label for querying that repo. For example:
 
 	```sh
-	./tsh.ts --repo matatk/tpac-scheduling-helper tpac-2025 --repo w3c/apa ...
+	tpac-scheduling-helper --repo matatk/tpac-scheduling-helper tpac-2025 --repo w3c/apa ...
 	```
 
 ### Combining GitHub usernames
