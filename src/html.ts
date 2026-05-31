@@ -10,33 +10,52 @@ import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps,
 import type { Day } from './day.ts'
 import type { Gap, Meeting } from './meeting.ts'
 
-export function makeHtml(
-	invalidMeetings: Partial<Meeting>[],
-	meetings: Meeting[],
-	movedMeetings: Meeting[],
-	repoPossibleDuplicates: RepoDuplicateMeetings,
-	unassignedMeetings: Meeting[],
-	cancelledMeetings: Partial<Meeting>[],
-	peopleNearlyClashingMeetings: PersonClashingMeetings,
-	peopleDefinitelyClashingMeetings: PersonClashingMeetings,
-	personDayMeetings: PersonDayMeetings,
-	equivalents: CombinedNames,
-	dayMeetings:DayMeetings,
-	haveDefinitelyClashing: boolean,
-	haveNearlyClashing: boolean,
-	personDayGaps:PersonDayGaps,
-	style: string,
-	myName: string,
-) {
+interface OutputInfo {
+	cancelledMeetings: Partial<Meeting>[]
+	dayMeetings: DayMeetings
+	equivalents: CombinedNames
+	haveDefinitelyClashing: boolean  // TODO: remove need for
+	haveNearlyClashing: boolean      // TODO: remove need for
+	invalidMeetings: Partial<Meeting>[]
+	movedMeetings: Meeting[]
+	myName: string
+	peopleDefinitelyClashingMeetings: PersonClashingMeetings
+	peopleNearlyClashingMeetings: PersonClashingMeetings
+	personDayGaps: PersonDayGaps
+	personDayMeetings: PersonDayMeetings
+	repoPossibleDuplicates: RepoDuplicateMeetings
+	style: string
+	unassignedMeetings: Meeting[]
+	validMeetings: Meeting[]
+}
+
+export function makeHtml({
+	cancelledMeetings,
+	dayMeetings,
+	equivalents,
+	haveDefinitelyClashing,
+	haveNearlyClashing,
+	invalidMeetings,
+	movedMeetings,
+	myName,
+	peopleDefinitelyClashingMeetings,
+	peopleNearlyClashingMeetings,
+	personDayGaps,
+	personDayMeetings,
+	repoPossibleDuplicates,
+	style,
+	unassignedMeetings,
+	validMeetings,
+}: OutputInfo): string {
 	const haveInvalid = invalidMeetings.length > 0
-	const haveMeetings = meetings.length > 0
+	const haveMeetings = validMeetings.length > 0
 	const haveMoved = movedMeetings.length > 0
 	const havePossibleDuplicates = repoPossibleDuplicates.size > 0
 	const haveUnassigned = unassignedMeetings.length > 0
 	const haveCancelled = cancelledMeetings.length > 0
 
 	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
-	const planned = outputPlannedMeetings(meetings, equivalents, true)
+	const planned = outputPlannedMeetings(validMeetings, equivalents, true)
 
 	const headingGroupResults = 'Group results'
 	const headingPersonalResults = 'Personal results'

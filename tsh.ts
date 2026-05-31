@@ -196,7 +196,8 @@ function main() {
 		personDayGaps,
 	} = processSchedule(tpac.days, equivalents, args.alternatives!, validMeetings)
 
-	const html = makeHtml(invalidMeetings,
+	const html = makeHtml({
+		invalidMeetings,
 		validMeetings,
 		movedMeetings,
 		repoPossibleDuplicates,
@@ -210,8 +211,9 @@ function main() {
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-		args.style,
-		MY_NAME)
+		style: args.style,
+		myName: MY_NAME,
+	})
 
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output + '.')
