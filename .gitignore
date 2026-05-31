@@ -1,4 +1,2 @@
 node_modules/
-*query-result.json
-schedule.html
-tpac.html
+cache/
