@@ -20,7 +20,7 @@ export default function getIssues(repo: string, label: string): GhIssue[] {
 	console.log(cmd, args.join(' '))
 	const child = spawnSync(cmd, args)
 	if (child.error || child.status !== 0) {
-		throw new Error(`gh: ${child.stderr.toString()}`)
+		throw new Error(`gh: ${child.stderr?.toString() ?? child.error?.message}`)
 	}
 	try {
 		return JSON.parse(child.stdout.toString())
