@@ -1,2 +1,2 @@
-const Kinds = [ 'group', 'breakout', 'cancelled' ] as const
-export type Kind = typeof Kinds[number]
+export type Kind = 'group' | 'breakout' | 'other' | 'nonexistent'
+export type Status = 'tentative' | 'confirmed' | 'cancelled'

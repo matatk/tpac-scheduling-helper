@@ -2,14 +2,15 @@ import { Temporal } from '@js-temporal/polyfill'
 
 import sort from './sort.ts'
 
+import type { Kind, Status } from './kind.ts'
 import type { Day } from './day.ts'
-import type { Kind } from './kind.ts'
 
 const PDT = Temporal.PlainDateTime
 
 export interface Meeting {
 	tag: number
 	kind: Kind
+	status: Status
 	calendarTitle: string
 	title: string
 	calendarDay: Day
@@ -57,6 +58,7 @@ type MatchStatus = typeof Match[keyof typeof Match]
 export function isMeeting(p: Partial<Meeting>): p is Meeting {
 	return !!p.tag &&
 		!!p.kind &&
+		!!p.status &&
 		!!p.calendarTitle &&
 		!!p.title &&
 		!!p.calendarDay &&
@@ -142,7 +144,7 @@ export function categoriseMeetings(allMeetings: Partial<Meeting>[]): Categorised
 			if (meeting.names.length === 0) {
 				unassignedMeetings.push(meeting)
 			}
-		} else if (meeting?.kind === 'cancelled') {
+		} else if (meeting.status === 'cancelled') {
 			cancelledMeetings.push(meeting)
 		} else {
 			invalidMeetings.push(meeting)

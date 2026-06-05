@@ -1,12 +1,12 @@
 import { Temporal } from '@js-temporal/polyfill'
 
-import ClashingMeetingsSet from './clashing-meetings-set.ts'
-import { Days } from './day.ts'
 import { Clash, clashes, isMeetingInGap, sameActualMeeting } from './meeting.ts'
+import ClashingMeetingsSet from './clashing-meetings-set.ts'
+import { days } from './day.ts'
 import { repo } from './repo.ts'
 
-import type { Day } from './day.ts'
 import type { Gap, Meeting } from './meeting.ts'
+import type { Day } from './day.ts'
 import type { TpacDays } from './tpacs.ts'
 
 export type CombinedNames = Map<string, string>
@@ -31,7 +31,7 @@ interface ScheduleResult {
 }
 
 function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
-	return new Map(Days.map(day => [ day, [] ]))
+	return new Map(days.map(day => [ day, [] ]))
 }
 
 function alternatives(
@@ -54,7 +54,7 @@ function alternatives(
 	return out
 }
 
-function addMeeting<T extends Day | string>(map: Map<T, Meeting[]>, key: T, meeting: Meeting) {
+function addMeeting(map: Map<string, Meeting[]>, key: string, meeting: Meeting) {
 	if (map.has(key)) {
 		map.get(key)!.push(meeting)
 	} else {

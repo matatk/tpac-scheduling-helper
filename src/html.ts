@@ -2,13 +2,13 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { repo } from './repo.ts'
 import { Match } from './meeting.ts'
+import { repo } from './repo.ts'
 import sort from './sort.ts'
 
 import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
-import type { Day } from './day.ts'
 import type { Gap, Meeting } from './meeting.ts'
+import type { Day } from './day.ts'
 
 interface OutputInfo {
 	cancelledMeetings: Partial<Meeting>[]
@@ -216,13 +216,16 @@ function peopleSelector(pms: PersonDayMeetings): string {
 function peopleSelectorStyle(pms: PersonDayMeetings): string {
 	let html = `<style>
 		section[data-person] {
+			display: none;
 		}
 
 		body:has(select > option:not([value]):checked) section[data-person] {
+			display: block;
 		}`
 
 	pms.forEach((_, name) => {
 		html += `body:has(select > option[value="${name}"]:checked) section[data-person="${name}"] {
+			display: block;
 		}`
 	})
 
@@ -294,7 +297,7 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNam
 	const nameHtml = names.length > 0
 		? `, <i>${people(names, combned)}</i>`
 		: ''
-	return `<a href="#${meeting.tag}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
+	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
 }
 
 function htmlEscapeThatNeedsImproving(text?: string): string | undefined {
@@ -303,11 +306,12 @@ function htmlEscapeThatNeedsImproving(text?: string): string | undefined {
 }
 
 function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
-	return `<div id="${meeting.tag}" class="meeting ${condition}">
+	return `<div id="${String(meeting.tag)}" class="meeting ${condition}">
 		<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
-		<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : null}</span></p>
+		<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>
 		<dl>
-			<dt>Kind</dt><dd>${meeting.kind}</dd>`
+			<dt>Kind</dt><dd>${meeting.kind as string}</dd>
+			<dt>Status</dt><dd>${meeting.status as string}</dd>`
 }
 
 function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
@@ -383,7 +387,7 @@ function outputPossibleDuplicateMeetings(rdm: RepoDuplicateMeetings, combined: C
 	for (const [ repo, possibleDupes ] of rdm) {
 		html += `<h4>Possibly duplicate meetings in ${repo}</h4>`
 		for (const [ index, meetings ] of possibleDupes.entries()) {
-			html += `<p>Set of possible duplicates ${index + 1}:</p>`
+			html += `<p>Set of possible duplicates ${String(index + 1)}:</p>`
 			html += '<ul>'
 			for (const m of meetings) {
 				html += `<li><p>${oneLinerFor(m, true, combined)}</p></li>`
@@ -408,8 +412,8 @@ function htmlPeopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): 
 	let out = ''
 	out += `<dt>Room</dt><dd>${meeting.calendarRoom ?? '???'}</dd>`
 	out += `<dt>People</dt><dd>${meeting.names ? people(meeting.names, combined) : '???'}</dd>`
-	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl}">${meeting.calendarUrl}</a></dd>`
-	out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl}">${meeting.issueUrl}</a></dd>`
+	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl ?? '???'}">${meeting.calendarUrl ?? '???'}</a></dd>`
+	out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl ?? '???'}">${meeting.issueUrl ?? '???'}</a></dd>`
 	return out
 }
 
@@ -425,7 +429,7 @@ function htmlNotes(meeting: Partial<Meeting>): string {
 
 function people(names: string[], combined: CombinedNames): string {
 	return names.map(name => combined.has(name)
-		? combined.get(name) + ' (' + name + ')'
+		? combined.get(name)! + ' (' + name + ')'
 		: name).join(', ')
 }
 

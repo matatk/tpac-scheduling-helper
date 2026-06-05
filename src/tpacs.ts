@@ -1,26 +1,28 @@
 import { Temporal } from '@js-temporal/polyfill'
 
+import { makeEventInfoGetter, scheduleInfo2025 } from './schedule-info.ts'
+
 import type { Day } from './day.ts'
+import type { EventInfoGetterMaker } from './schedule-info.ts'
 
 export const TpacYears = [ 2025 ] as const
 export type TpacYear = typeof TpacYears[number]  // TODO: Only exported for type asssertion around args.year
 
 export type TpacDays = Record<Day, {
-		midnight: Temporal.PlainDateTime
-		start: Temporal.PlainDateTime
-		end: Temporal.PlainDateTime
+	midnight: Temporal.PlainDateTime
+	start: Temporal.PlainDateTime
+	end: Temporal.PlainDateTime
+}>
+
+type Tpacs = Record<TpacYear, {
+		makeGetter: EventInfoGetterMaker
+		days: TpacDays
 	}>
 
-type Tpacs = {
-	[tpac in TpacYear as `tpac${tpac}`]: {
-		schedule: string
-		days: TpacDays
-	}
-}
-
 const TPACs: Tpacs = {
-	tpac2025: {
-		schedule: 'https://www.w3.org/2025/11/TPAC/schedule.html',
+	2025: {
+		makeGetter: (localFile: string) => makeEventInfoGetter(
+			'https://www.w3.org/calendar/tpac2025/export/', localFile, scheduleInfo2025),
 		days: {
 			monday: {
 				midnight: new Temporal.PlainDateTime(2025, 11, 10),

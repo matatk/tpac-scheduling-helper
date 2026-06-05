@@ -14,17 +14,16 @@ interface GhAssignee {
 	databaseId: number
 }
 
-export default function getIssues(repo: string, label: string): GhIssue[] {
-	const cmd = 'gh'
+export default function getIssues(gh: string, repo: string, label: string): GhIssue[] {
 	const args = [ '--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999' ]
-	console.log(cmd, args.join(' '))
-	const child = spawnSync(cmd, args)
-	if (child.error || child.status !== 0) {
-		throw new Error(`gh: ${child.stderr?.toString() ?? child.error?.message}`)
+	console.log(gh, args.join(' '))
+	const child = spawnSync(gh, args)
+	if (child.error || child.stderr.length > 0) {
+		throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`)
 	}
 	try {
 		return JSON.parse(child.stdout.toString())
 	} catch (err) {
-		throw new Error('Parsing GitHub API result: ' + (err instanceof Error ? err.message : err)) // TODO: Should this be String(err)?
+		throw new Error('Parsing GitHub API result: ' + String(err instanceof Error ? err.message : err), { cause: err })
 	}
 }

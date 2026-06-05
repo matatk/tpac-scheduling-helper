@@ -1,6 +1,6 @@
-export const Days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday' ] as const
-export type Day = typeof Days[number]
+export const days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday' ] as const
+export type Day = typeof days[number]
 
-export function isDay(candidate: any): candidate is Day {
-	return Days.includes(candidate)
+export function isDay(candidate: unknown): candidate is Day {
+	return days.includes(candidate as Day)
 }

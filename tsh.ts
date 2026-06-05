@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 import fs from 'fs'
 
-import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
+import yargs from 'yargs'
 
 import TPACs from './src/tpacs.ts'
-import processSchedule from './src/scheduling.ts'
-import meetingFromIssue from './src/meeting-from-issue.ts'
-import { makeCalendarMeetingInfoGetter } from './src/calendar-meeting-info.ts'
-import { makeHtml } from './src/html.ts'
 import { TpacYears } from './src/tpacs.ts'
 import { categoriseMeetings } from './src/meeting.ts'
 import getIssues from './src/get-issues.ts'
+import { makeHtml } from './src/html.ts'
+import meetingFromIssue from './src/meeting-from-issue.ts'
+import processSchedule from './src/scheduling.ts'
 
 import type { CombinedNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/get-issues.ts'
@@ -61,7 +60,7 @@ function getArgs() {
 		.option('meetings', {
 			alias: 'm',
 			type: 'string',
-			description: 'Path to the local meetings schedule HTML file. It will be downloaded from the TPAC site if it doesn\'t exist.\n',
+			description: 'Path to the local meetings schedule ICS file. It will be downloaded from the TPAC site if it doesn\'t exist.\n',
 			required: true,
 		})
 		.option('output', {
@@ -101,15 +100,20 @@ function getArgs() {
 			type: 'string',
 			description: 'Path to local JSON file to save all issues returned from all GitHub API query responses.\n',
 		})
+		.option('gh', {
+			type: 'string',
+			description: 'Path to/name of gh binary.\n',
+			default: 'gh',
+		})
 		.group([ 'meetings', 'output', 'repo' ], 'Vital info:')
-		.group([ 'alternatives', 'combine', 'label' ], 'Issue/filtering options:')
+		.group([ 'alternatives', 'combine', 'label', 'gh' ], 'Issue/filtering options:')
 		.group([ 'style' ], 'Output options:')
 		.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
 		.group([ 'help', 'version' ], 'Workhorses:')
 		.conflicts('query-result', 'save-result')
 		.strict()
 		.check(args => {
-			if (!args.alternatives) args.alternatives = []
+			args.alternatives ??= []
 			return true
 		})
 		.check(args => {
@@ -125,8 +129,8 @@ function main() {
 	const args = getArgs()
 	const equivalents: CombinedNames = new Map()
 	const issues: GhIssue[] = []
-	const tpac = TPACs[`tpac${args.year!}`]
-	const calendarMeetingInfo = makeCalendarMeetingInfoGetter(tpac.schedule, args.meetings)
+	const tpac = TPACs[args.year!]
+	const getCalendarInfo = tpac.makeGetter(args.meetings)
 
 	// FIXME: Figure out TypeScript/yargs workaround, and DRY with the below
 	if (args.combine) {
@@ -148,20 +152,17 @@ function main() {
 	} else if (args.repo) {
 		console.log('Querying repo(s)...')
 
-		// FIXME: Figure out TypeScript/yargs workaround, and DRY with the above
-		if (args.repo) {
-			if (args.repo.length <= 2 && args.repo.every(value => typeof value === 'string')) {
-				args.repo = [ args.repo ] as unknown as string[]
-			}
-			if (!args.repo.every(value =>
-				Array.isArray(value) && value.length > 0 && value.length < 3)) {
-				errorOut('Every \'repo\' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:', args.repo)
-			}
+		if (args.repo.length <= 2 && args.repo.every(value => typeof value === 'string')) {
+			args.repo = [ args.repo ] as unknown as string[]
+		}
+		if (!args.repo.every(value =>
+			Array.isArray(value) && value.length > 0 && value.length < 3)) {
+			errorOut('Every \'repo\' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:', args.repo)
 		}
 		// NOTE: TypeScript doesn't seem to know it, but at this point we know that args.repo is an array of 1- or 2-value arrays.
 		for (const repoLabel of args.repo) {
 			try {
-				issues.push(...getIssues(repoLabel[0]!, repoLabel[1] ?? args.label))
+				issues.push(...getIssues(args.gh, repoLabel[0]!, repoLabel[1] ?? args.label))
 			} catch (err) {
 				errorOut(err)
 			}
@@ -174,7 +175,7 @@ function main() {
 	}
 
 	const allMeetings = issues.map((issue =>
-		meetingFromIssue(tpac.days, calendarMeetingInfo, issue)))
+		meetingFromIssue(tpac.days, getCalendarInfo, issue)))
 
 	const {
 		validMeetings,

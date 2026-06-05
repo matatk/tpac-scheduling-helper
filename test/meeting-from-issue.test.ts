@@ -2,7 +2,8 @@ import { describe, expect, test } from 'vitest'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { _parseBodyInfo } from '../src/meeting-from-issue'
+import { _test } from '../src/meeting-from-issue'
+const { parseBodyInfo } = _test
 
 import type { TpacDays } from '../src/tpacs'
 
@@ -34,7 +35,7 @@ const tpac2025: TpacDays = {
 	},
 } as const
 
-describe('_parseBodyInfo()', () => {
+describe('parseBodyInfo()', () => {
 	test('well-formed info', () => {
 		const fixture = `https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/
 Monday
@@ -42,7 +43,7 @@ Monday
 
 Test for attending the whole session.`
 
-		expect(_parseBodyInfo(tpac2025, fixture)).toStrictEqual({
+		expect(parseBodyInfo(tpac2025, fixture)).toStrictEqual({
 			calendarUrl: 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/',
 			day: 'monday',
 			start: new Temporal.PlainDateTime(2025, 11, 10, 13, 45),
@@ -52,10 +53,28 @@ Test for attending the whole session.`
 		})
 	})
 
+	test('well-formed info with extra people', () => {
+		const fixture = `https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/
+Monday
+13:45 - 15:00
+@matatk JaninaSajka, @ruoxiran
+
+Test for attending the whole session.`
+
+		expect(parseBodyInfo(tpac2025, fixture)).toStrictEqual({
+			calendarUrl: 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/',
+			day: 'monday',
+			start: new Temporal.PlainDateTime(2025, 11, 10, 13, 45),
+			end: new Temporal.PlainDateTime(2025, 11, 10, 15),
+			notes: 'Test for attending the whole session.',
+			extraPeople: [ 'matatk', 'JaninaSajka', 'ruoxiran' ],
+		})
+	})
+
 	test('invalid, only URL', () => {
 		const fixture = 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/'
 
-		expect(_parseBodyInfo(tpac2025, fixture)).toStrictEqual({
+		expect(parseBodyInfo(tpac2025, fixture)).toStrictEqual({
 			calendarUrl: 'https://www.w3.org/events/meetings/31046de8-90b7-40f2-9b52-93d2fe0450b5/',
 			day: undefined,
 			start: undefined,

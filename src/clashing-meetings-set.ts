@@ -11,11 +11,11 @@ export default class ClashingMeetingsSet {
 
 	add(a: Meeting, b: Meeting) {
 		const sorted = [ a, b ].sort((a, b) => a.tag - b.tag)
-		if (sorted.length !== 2) throw('Sorted pair is not of length 2: ' + sorted)
+		if (sorted.length !== 2) throw new Error('Sorted pair is not of length 2: ' + JSON.stringify(sorted))
 		const ident = sorted.map(m => m.tag).join(':')
 		if (!this.#idPairs.has(ident)) {
 			this.#idPairs.add(ident)
-			this.#meetingPairs.push([ sorted[0], sorted[1] ])
+			this.#meetingPairs.push([ sorted[0]!, sorted[1]! ])
 		}
 	}
 
