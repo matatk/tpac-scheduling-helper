@@ -69,7 +69,7 @@ export function scheduleInfo2025(uid: string): Partial<CalendarMeetingInfo> {
 	const room = event.location
 	const kind = event.categories?.includes('Group Meetings')
 		? 'group'
-		: event.categories?.includes('Breakout Session')
+		: event.categories?.includes('Breakout Sessions')
 			? 'breakout'
 			: 'other'
 	const status = event.status == 'CONFIRMED'
