@@ -2,12 +2,12 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { Match } from './meeting.ts'
 import { repo } from './repo.ts'
 import sort from './sort.ts'
 
 import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
-import type { Gap, Meeting } from './meeting.ts'
+import type { Gap, Match, Meeting } from './meeting.ts'
+import type { Kind, Status } from './kind-status.ts'
 import type { Day } from './day.ts'
 
 interface OutputInfo {
@@ -28,6 +28,27 @@ interface OutputInfo {
 	unassignedMeetings: Meeting[]
 	validMeetings: Meeting[]
 }
+
+type UnprocessableReason = 'invalid' | 'cancelled'
+
+const kindPretty: Record<Kind, string> = {
+	group: 'Group',
+	breakout: 'Breakout',
+	other: 'SOME OTHER KIND OF EVENT THAT I AM NOT SURE ABOUT',
+	nonexistent: "(doesn't exist)",
+} as const
+
+const matchPretty: Record<Match, string> = {
+	exact: 'Attending whole meeting',
+	subset: 'Attending part of meeting',
+	mismatch: 'Mismatch between our times and calendar',
+}
+
+const statusPretty: Record<Status, string> = {
+	tentative: 'Tentative',
+	confirmed: 'Confirmed',
+	cancelled: 'Cancelled',
+} as const
 
 export function makeHtml({
 	cancelledMeetings,
@@ -300,31 +321,40 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNam
 	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
 }
 
-function htmlEscapeThatNeedsImproving(text?: string): string | undefined {
-	if (text) return text.replace('<', '&lt;').replace('>', '&gt;')
-	return
+function htmlEscapeThatNeedsImproving(text?: string): string {
+	return text ? text.replace('<', '&lt;').replace('>', '&gt;') : '???'
 }
 
-function htmlMeetingHeader(meeting: Partial<Meeting>, condition: string): string {
-	return `<div id="${String(meeting.tag)}" class="meeting ${condition}">
+function htmlMeetingHeader(meeting: Partial<Meeting>, nature: Match | UnprocessableReason): string {
+	let klass: string
+
+	switch (nature) {
+		case 'exact': klass = 'match-exact'; break
+		case 'subset': klass = 'match-subset'; break
+		case 'mismatch': klass = 'match-miss'; break
+		case 'cancelled': klass = 'cancelled'; break
+		case 'invalid': klass = 'invalid'; break
+	}
+
+	return `<div id="${String(meeting.tag)}" class="meeting ${klass}">
 		<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
 		<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>
 		<dl>
-			<dt>Kind</dt><dd>${meeting.kind as string}</dd>
-			<dt>Status</dt><dd>${meeting.status as string}</dd>`
+			<dt>Kind</dt><dd>${meeting.kind ? kindPretty[meeting.kind] : '???'}</dd>
+			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
 }
 
 function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	let out = ''
 
-	if (meeting.match === Match.NOPE && meeting.day !== meeting.calendarDay) {
+	if (meeting.match === 'mismatch' && meeting.day !== meeting.calendarDay) {
 		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 		out += `<dt>Our day</dt><dd>${pretty(meeting.day)}</dd>`
 	} else {
 		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
-	if (meeting.match !== Match.EXACT) {
+	if (meeting.match !== 'exact') {
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 		out += `<dt>Our time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
 	} else {
@@ -332,7 +362,7 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	}
 
 	out += htmlPeopleAndUrls(meeting, combined)
-	out += `<dt>Time match</dt><dd>${pretty(meeting.match)}</dd>`
+	out += `<dt>Time match</dt><dd>${matchPretty[meeting.match]}</dd>`
 	out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
 	out += '</dl>'
 
@@ -344,8 +374,8 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	return htmlMeetingHeader(meeting, meeting.match) + out
 }
 
-function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames, klass: string): string {
-	let out = htmlMeetingHeader(meeting, klass)
+function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames, reason: UnprocessableReason): string {
+	let out = htmlMeetingHeader(meeting, reason)
 
 	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
 	out += `<dt>Our day</dt><dd>${meeting.day ? pretty(meeting.day) : '???'}</dd>`
@@ -453,12 +483,12 @@ function htmlAlternativesOrNot(m: Meeting): string {
 	return ''
 }
 
-function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, klass: string): string {
+function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, reason: UnprocessableReason): string {
 	if (ims.length === 0) return ''
 	let html = ''
 
 	ims.forEach(p => {
-		html += htmlForPartialMeeting(p, equivalents, klass)
+		html += htmlForPartialMeeting(p, equivalents, reason)
 	})
 
 	return html

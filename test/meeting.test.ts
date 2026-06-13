@@ -2,28 +2,41 @@ import { describe, expect, test } from 'vitest'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { Clash, Match, clashes, isMeetingInGap, sameActualMeeting, timeMatch } from '../src/meeting.ts'
+import { clashes, isMeetingInGap, sameActualMeeting, timeMatch } from '../src/meeting.ts'
 
 import type { Meeting } from '../src/meeting.ts'
 
-function mkMeetingStartEnd(start: Temporal.PlainDateTime, end: Temporal.PlainDateTime): Meeting {
+function mkMeetingStartEnd(
+	start: Temporal.PlainDateTime,
+	end: Temporal.PlainDateTime,
+	calStart?: Temporal.PlainDateTime,
+	calEnd?: Temporal.PlainDateTime,
+): Meeting {
+	if (calStart === start && calEnd === end) {
+		throw new Error("When specifying a calendar start and end, they should differ from the values for 'our' start and end.")
+	}
+
+	const calendarStart = calStart ?? start
+	const calendarEnd = calEnd ?? end
+
 	return {
-		start,
-		end,
-		tag: 0,
-		kind: 'group',
-		calendarTitle: '',
-		title: '',
-		calendarDay: 'monday',
-		day: 'monday',
-		calendarStart: new Temporal.PlainDateTime(1925, 4, 28, 1),
-		calendarEnd: new Temporal.PlainDateTime(1925, 4, 28, 2),
-		match: 'exact',
-		calendarRoom: '',
-		names: [],
-		calendarUrl: '',
-		issueUrl: '',
 		alternatives: [],
+		calendarDay: 'monday',
+		calendarEnd,
+		calendarRoom: '',
+		calendarStart,
+		calendarTitle: '',
+		calendarUrl: '',
+		day: 'monday',
+		end,
+		issueUrl: '',
+		kind: 'group',
+		match: calStart || calEnd ? 'mismatch' : 'exact',
+		names: [],
+		start,
+		status: 'confirmed',
+		tag: 0,
+		title: '',
 	}
 }
 
@@ -99,19 +112,8 @@ describe('clashes()', () => {
 			new Temporal.PlainDateTime(2025, 5, 26, 17),
 			new Temporal.PlainDateTime(2025, 5, 26, 18))
 
-		expect(clashes(meeting1, meetingA)).toBe(Clash.NONE)
-	})
-
-	test('no clash (separate, swapped)', () => {
-		const meeting1 = mkMeetingStartEnd(
-			new Temporal.PlainDateTime(2025, 5, 26, 14),
-			new Temporal.PlainDateTime(2025, 5, 26, 16))
-
-		const meetingA = mkMeetingStartEnd(
-			new Temporal.PlainDateTime(2025, 5, 26, 17),
-			new Temporal.PlainDateTime(2025, 5, 26, 18))
-
-		expect(clashes(meetingA, meeting1)).toBe(Clash.NONE)
+		expect(clashes(meeting1, meetingA)).toBe('none')
+		expect(clashes(meetingA, meeting1)).toBe('none')
 	})
 
 	test('near clash (adjacent)', () => {
@@ -123,19 +125,8 @@ describe('clashes()', () => {
 			new Temporal.PlainDateTime(2025, 5, 26, 16),
 			new Temporal.PlainDateTime(2025, 5, 26, 17))
 
-		expect(clashes(meeting1, meetingA)).toBe(Clash.NEAR)
-	})
-
-	test('near clash (adjacent, swapped)', () => {
-		const meeting1 = mkMeetingStartEnd(
-			new Temporal.PlainDateTime(2025, 5, 26, 14),
-			new Temporal.PlainDateTime(2025, 5, 26, 16))
-
-		const meetingA = mkMeetingStartEnd(
-			new Temporal.PlainDateTime(2025, 5, 26, 16),
-			new Temporal.PlainDateTime(2025, 5, 26, 17))
-
-		expect(clashes(meetingA, meeting1)).toBe(Clash.NEAR)
+		expect(clashes(meeting1, meetingA)).toBe('near')
+		expect(clashes(meetingA, meeting1)).toBe('near')
 	})
 
 	test('definite clash (overlap)', () => {
@@ -147,19 +138,23 @@ describe('clashes()', () => {
 			new Temporal.PlainDateTime(2025, 5, 26, 13),
 			new Temporal.PlainDateTime(2025, 5, 26, 15))
 
-		expect(clashes(meeting1, meetingA)).toBe(Clash.DEFO)
+		expect(clashes(meeting1, meetingA)).toBe('overlap')
+		expect(clashes(meetingA, meeting1)).toBe('overlap')
 	})
 
-	test('definite clash (overlap, swapped)', () => {
+	test("meeting that's moved that clashes", () => {
 		const meeting1 = mkMeetingStartEnd(
-			new Temporal.PlainDateTime(2025, 5, 26, 14),
-			new Temporal.PlainDateTime(2025, 5, 26, 16))
-
-		const meetingA = mkMeetingStartEnd(
 			new Temporal.PlainDateTime(2025, 5, 26, 13),
 			new Temporal.PlainDateTime(2025, 5, 26, 15))
 
-		expect(clashes(meetingA, meeting1)).toBe(Clash.DEFO)
+		const meetingA = mkMeetingStartEnd(
+			new Temporal.PlainDateTime(2025, 5, 26, 14),
+			new Temporal.PlainDateTime(2025, 5, 26, 16),
+			new Temporal.PlainDateTime(2025, 5, 26, 15),
+			new Temporal.PlainDateTime(2025, 5, 26, 17))
+
+		expect(clashes(meeting1, meetingA)).toBe('near')
+		expect(clashes(meetingA, meeting1)).toBe('near')
 	})
 })
 
@@ -170,7 +165,7 @@ describe('timeMatch()', () =>{
 			new Temporal.PlainDateTime(2026, 8, 26, 12),
 			new Temporal.PlainDateTime(2026, 8, 26, 10),
 			new Temporal.PlainDateTime(2026, 8, 26, 12),
-		)).toBe(Match.EXACT)
+		)).toBe('exact')
 	})
 
 	test('strict subset', () => {
@@ -179,7 +174,7 @@ describe('timeMatch()', () =>{
 			new Temporal.PlainDateTime(2026, 8, 26, 12),
 			new Temporal.PlainDateTime(2026, 8, 26, 10, 30),
 			new Temporal.PlainDateTime(2026, 8, 26, 11, 42),
-		)).toBe(Match.SUBSET)
+		)).toBe('subset')
 	})
 
 	test('overlap (start)', () => {
@@ -188,7 +183,7 @@ describe('timeMatch()', () =>{
 			new Temporal.PlainDateTime(2026, 8, 26, 12),
 			new Temporal.PlainDateTime(2026, 8, 26,  9, 30),
 			new Temporal.PlainDateTime(2026, 8, 26, 12),
-		)).toBe(Match.NOPE)
+		)).toBe('mismatch')
 	})
 
 	test('overlap (end)', () => {
@@ -197,7 +192,7 @@ describe('timeMatch()', () =>{
 			new Temporal.PlainDateTime(2026, 8, 26, 12),
 			new Temporal.PlainDateTime(2026, 8, 26, 10),
 			new Temporal.PlainDateTime(2026, 8, 26, 12, 30),
-		)).toBe(Match.NOPE)
+		)).toBe('mismatch')
 	})
 })
 

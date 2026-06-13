@@ -1,6 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill'
 
-import { Clash, clashes, isMeetingInGap, sameActualMeeting } from './meeting.ts'
+import { clashes, isMeetingInGap, sameActualMeeting } from './meeting.ts'
 import ClashingMeetingsSet from './clashing-meetings-set.ts'
 import { days } from './day.ts'
 import { repo } from './repo.ts'
@@ -69,6 +69,11 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 	map.get(name)!.add(m, o)
 }
 
+// FIXME: meetings that have moved are also valid meetings BUT...
+//        the calendar time for those meetings must take precedence over OUR time!
+//        i.e. if meeting.match is NONE use the calendar times when checking the schedule.
+//        TODO: It will be the same when displaying meetings in lists (not fully) too!
+//        TODO: should indicate moved/exact/subset in list items too?
 export default function processSchedule(
 	tpacDays: TpacDays,
 	equivalents: CombinedNames,
@@ -124,11 +129,11 @@ export default function processSchedule(
 					if (sameActualMeeting(meeting, other)) continue
 
 					switch (clashes(meeting, other)) {
-						case Clash.DEFO:
+						case 'overlap':
 							addClashingMeeting(peopleDefinitelyClashingMeetings, person, meeting, other)
 							haveDefinitelyClashing = true
 							break
-						case Clash.NEAR:
+						case 'near':
 							addClashingMeeting(peopleNearlyClashingMeetings, person, meeting, other)
 							haveNearlyClashing = true
 							break

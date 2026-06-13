@@ -74,15 +74,15 @@ ul.clashing li {
 	margin-block-end: 1em;
 }
 
-.meeting.exact {
+.meeting.match-exact {
 	border: 4px solid var(--exact);
 }
 
-.meeting.subset {
+.meeting.match-subset {
 	border: 4px solid var(--subset);
 }
 
-.meeting.nope {
+.meeting.match-miss {
 	border: 4px solid var(--nope);
 }
 
@@ -95,7 +95,8 @@ ul.clashing li {
 }
 
 :target.meeting {
-	border: 4px solid var(--highlight);
+	outline: 2px solid var(--highlight);
+	outline-offset: 6px;
 }
 
 .meeting>:first-child {

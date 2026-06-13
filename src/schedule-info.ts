@@ -7,12 +7,11 @@ import type { IcsEvent } from 'ts-ics'
 
 import { days } from './day.ts'
 
-import type { Kind, Status } from './kind.ts'
+import type { Kind, Status } from './kind-status.ts'
 import type { Day } from './day.ts'
 
 export const _test = { getSchedule, scheduleInfo2025 }
 
-// FIXME: Add an explicit 'error' kind?
 export interface CalendarMeetingInfo {
 	title: string
 	day: Day

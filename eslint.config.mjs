@@ -25,7 +25,7 @@ export default defineConfig(
 	  	'comma-dangle': [ 'error', 'always-multiline' ],
 	  	'indent': [ 'error', 'tab', { SwitchCase: 1 } ],
 	  	'object-curly-spacing': [ 'error', 'always' ],
-	  	'quotes': [ 'error', 'single' ],
+	  	'quotes': [ 'error', 'single', { avoidEscape: true } ],
 	  	'semi': [ 'error', 'never' ],
 	  	'space-before-function-paren': [ 'error', 'never' ],
 	  	'sort-imports': [ 'error', { allowSeparatedGroups: true } ],
