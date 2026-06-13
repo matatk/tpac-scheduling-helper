@@ -8,7 +8,6 @@ import sort from './sort.ts'
 import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
-import type { Day } from './day.ts'
 
 interface OutputInfo {
 	cancelledMeetings: Partial<Meeting>[]
@@ -76,10 +75,16 @@ export function makeHtml({
 	const haveCancelled = cancelledMeetings.length > 0
 
 	const plannedLinks = htmlDayMeetingLinks(dayMeetings, equivalents)
-	const planned = outputPlannedMeetings(validMeetings, equivalents, true)
+	const planned = outputDayMeetings(dayMeetings, equivalents)
 
-	const headingGroupResults = 'Group results'
-	const headingPersonalResults = 'Personal results'
+	const navFilteringId = 'nav-and-filtering'
+	const navFilteringHeading = 'Navigation and filtering'
+
+	const groupResultsId = 'group-results'
+	const groupResultsHeading = 'Group results'
+
+	const personalResultsId = 'personal-results'
+	const personalResultsHeading = 'Personal results'
 
 	const invalidId = 'invalid'
 	const invalidHeading = 'Invalid meeting entries'
@@ -120,9 +125,9 @@ export function makeHtml({
 			<header>
 				<h1>${myName}</h1>
 			</header>
-			<nav>
-				<h2>Navigation and filtering</h2>
-				<h3>${headingGroupResults}</h3>
+			<nav aria-labelledby="${navFilteringId}">
+				<h2 id=${navFilteringId}>${navFilteringHeading}</h2>
+				<h3>${groupResultsHeading}</h3>
 				<ul>
 					<li><p>${sectionLink(haveInvalid, invalidId, invalidHeading)}</p></li>
 					<li><p>${sectionLink(haveMoved, movedId, movedHeading)}</p></li>
@@ -131,7 +136,7 @@ export function makeHtml({
 					<li><p>${sectionLink(haveMeetings, plannedId, plannedHeading)}</p></li>
 					<li><p>${sectionLink(haveCancelled, cancelledId, cancelledHeading)}</p></li>
 				</ul>
-				<h3>${headingPersonalResults}</h3>
+				<h3>${personalResultsHeading}</h3>
 				${peopleSelector(personDayMeetings)}
 				<ul>
 					<li><p>${sectionLink(haveDefinitelyClashing, clashingId, clashingHeading)}</p></li>
@@ -147,52 +152,52 @@ export function makeHtml({
 		</footer>
 		</body></html>`
 
-	const html = htmlStart +
-		`<h2>${headingGroupResults}</h2>` +
-		(haveInvalid
-			? `<h3 id="${invalidId}">${invalidHeading}</h3>` +
-				outputUnprocessableMeetings(invalidMeetings, equivalents, 'invalid')
-			: '') +
-		(haveMoved
-			? `<h3 id="${movedId}">${movedHeading}</h3>` +
-				outputPlannedMeetings(movedMeetings, equivalents, false)
-			: '') +
-		(havePossibleDuplicates
-			? `<h3 id="${possibleDuplicatesId}">${possibleDuplicatesHeading}</h3>` +
-				'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>' +
-				'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>' +
-				outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents)
-			: '') +
-		(haveUnassigned
-			? `<h3 id="${unassignedId}">${unassignedHeading}</h3>` +
-				outputUnassignedMeetings(unassignedMeetings, equivalents)
-			: '') +
-		(haveMeetings
-			? `<h3 id="${plannedId}">${plannedHeading}</h3>` +
-				'<h4>Summary</h4>' +
-				plannedLinks +
-				planned
-			: '') +
-		(haveCancelled
-			? `<h3 id="${cancelledId}">${cancelledHeading}</h3>` +
-				outputUnprocessableMeetings(cancelledMeetings, equivalents, 'cancelled')
-			: '') +
-		`<h2>${headingPersonalResults}</h2>` +
-		(haveDefinitelyClashing
-			? `<h3 id="${clashingId}">${clashingHeading}</h3>` +
-				outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents)
-			: '') +
-		(haveNearlyClashing
-			? `<h3 id="${nearlyClashingId}">${nearlyClashingHeading}</h3>` +
-				outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents)
-			: '') +
-		(true
-			? `<h3 id="${timetableId}">${timetableHeading}</h3>` +
-				outputTimetable(personDayMeetings, personDayGaps, equivalents)
-			: '') +
-		htmlEnd
+	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
+		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`
 
-	return html
+	if (html) html += section(3, false, invalidId, invalidHeading, [], outputUnprocessableMeetings(invalidMeetings, equivalents, 'invalid'))
+	if (haveMoved) html += section(3, false, movedId, movedHeading, [], outputMeetings(movedMeetings, equivalents))
+	if (havePossibleDuplicates) {
+		html += section(3, true, possibleDuplicatesId, possibleDuplicatesHeading, [
+			'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>',
+			'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>',
+		], outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents))
+	}
+	if (haveUnassigned) html += section(3, true, unassignedId, unassignedHeading, [], outputUnassignedMeetings(unassignedMeetings, equivalents))
+	if (haveMeetings) html += section(3, false, plannedId, plannedHeading, [
+		section(4, true, 'planned-summary', 'Summary', [], plannedLinks),
+	], planned)
+	if (haveCancelled) html += section(3, false, cancelledId, cancelledHeading, [], outputUnprocessableMeetings(cancelledMeetings, equivalents, 'cancelled'))
+
+	html += '</section>'
+
+	html += `<section aria-labelledby="${personalResultsId}">
+		<h2 id="${personalResultsId}">${personalResultsHeading}</h2>`
+
+	if (haveDefinitelyClashing) html += section(3, true, clashingId, clashingHeading, [], outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents))
+	if (haveNearlyClashing) html += section(3, false, nearlyClashingId, nearlyClashingHeading, [], outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents))
+
+	html += section(3, false, timetableId, timetableHeading, [], outputTimetable(personDayMeetings, personDayGaps, equivalents))
+
+	html += '</section>'
+
+	return html + htmlEnd
+}
+
+function section(
+	headingLevel: number,
+	restrained: boolean,
+	id: string,
+	heading: string,
+	top: string[],
+	content: string,
+): string {
+	const klass = restrained ? ' class="restrained"' : ''
+	return `<section aria-labelledby="${id}"${klass}>
+		<h${String(headingLevel)} id="${id}">${heading}</h${String(headingLevel)}>
+		${top.join('\n')}
+		${content}
+	</section>`
 }
 
 function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): string {
@@ -212,19 +217,23 @@ function htmlDayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): stri
 	return html
 }
 
-function outputPlannedMeetings(pms: Meeting[], equivalents: CombinedNames, showDay: boolean): string {
+function outputDayMeetings(dms: DayMeetings, equivalents: CombinedNames): string {
 	let html = ''
-	let currentDay: Day | null = null
 
-	for (const meeting of pms) {
-		if (showDay && meeting.calendarDay !== currentDay) {
-			currentDay = meeting.calendarDay
-			html += `<h4>${pretty(meeting.calendarDay)}</h4>`
-		}
-		html += htmlForMeeting(meeting, equivalents)
+	for (const day of dms.keys()) {
+		const meetings = dms.get(day)!
+		html += section(4, false, day, pretty(day), [],
+			meetings.length > 0 ? outputMeetings(meetings, equivalents) : '<p>(none)</p>')
 	}
 
 	return html
+}
+
+// TODO: DRY with outputUnprocessableMeetings()
+function outputMeetings(pms: Meeting[], equivalents: CombinedNames): string {
+	return '<div class="meeting-container">' +
+		pms.map(meeting => htmlForMeeting(meeting, equivalents)).join('\n') +
+		'</div>'
 }
 
 function peopleSelector(pms: PersonDayMeetings): string {
@@ -280,7 +289,7 @@ function outputTimetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: C
 	for (const name of sortedNames) {
 		const dayGaps = pdg.get(name)!
 		html += `<section data-person="${name}">`
-		html += `<h4 id="timetable-${name}">${name}</h4>`
+		html += `<h4 id="${name}">${name}</h4>`
 		html += tTop + '<tr>'
 		for (const [ day, gaps ] of dayGaps) {
 			html += '<td><ul>'
@@ -318,7 +327,16 @@ function oneLinerFor(meeting: Meeting, includeDay: boolean, combned: CombinedNam
 	const nameHtml = names.length > 0
 		? `, <i>${people(names, combned)}</i>`
 		: ''
-	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</b>, ${meeting.calendarRoom}${nameHtml}`
+	const realStart = meeting.match === 'mismatch'
+		? meeting.calendarStart
+		: meeting.start
+	const realEnd = meeting.match === 'mismatch'
+		? meeting.calendarEnd
+		: meeting.end
+	const movedMaybe = meeting.match === 'mismatch'
+		? ' (moved)'
+		: ''
+	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.calendarRoom}${nameHtml}`
 }
 
 function htmlEscapeThatNeedsImproving(text?: string): string {
@@ -337,8 +355,10 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, nature: Match | Unprocessa
 	}
 
 	return `<div id="${String(meeting.tag)}" class="meeting ${klass}">
-		<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
-		<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>
+		<div>
+			<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
+			<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>
+		</div>
 		<dl>
 			<dt>Kind</dt><dd>${meeting.kind ? kindPretty[meeting.kind] : '???'}</dd>
 			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
@@ -398,14 +418,14 @@ function outputClashingMeetings(pcm: PersonClashingMeetings, kind: string, combi
 	for (const [ name, cms ] of pcm) {
 		if (cms.size) {
 			html += `<section data-person="${name}">`
-			html += `<h4>${kind} clashing meetings for ${name}</h4><ul class="clashing">`
+			html += `<h4>${kind} clashing meetings for ${name}</h4><ol class="clashing">`
 			for (const [ m, o ] of cms) {
 				html += `<li>
 					<p>${oneLinerFor(m, true, combined, name)}</p>${htmlAlternativesOrNot(m)}
 					<p>and</p>
 					<p>${oneLinerFor(o, true, combined, name)}</p>${htmlAlternativesOrNot(o)}</li>`
 			}
-			html += '</ul>'
+			html += '</ol>'
 			html += '</section>'
 		}
 	}
@@ -483,6 +503,7 @@ function htmlAlternativesOrNot(m: Meeting): string {
 	return ''
 }
 
+// TODO: DRY with outputMeetings()
 function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, reason: UnprocessableReason): string {
 	if (ims.length === 0) return ''
 	let html = ''
@@ -491,5 +512,7 @@ function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: Combi
 		html += htmlForPartialMeeting(p, equivalents, reason)
 	})
 
-	return html
+	return '<div class="meeting-container">' +
+		html +
+		'</div>'
 }

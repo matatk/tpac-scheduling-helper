@@ -10,9 +10,13 @@
 	--highlight: blue;
 	--cancelled: gray;
 
-	--toprule: 0.15em;
+	--toprule: 0.15rem;
 	--midrule: calc(0.5 * var(--toprule));
-	--totally-rules: 0.01em;
+	--totally-rules: 0.01rem;
+
+	--sidebar-width: 19rem;
+	--sidebar-gap: 1rem;
+	--details-popup-width: 35rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,7 +39,7 @@ nav>ul {
 	line-height: normal;
 }
 
-@media screen and (min-width: 80em) {
+@media screen and (min-width: 80rem) {
 	body {
 		width: auto;
 	}
@@ -43,9 +47,10 @@ nav>ul {
 	nav {
 		position: sticky;
 		top: 0.5rem;
-		width: 19rem;
+		width: var(--sidebar-width);
 		float: left;
-		max-height: calc(100vh - 0.5rem);
+		max-height: calc(100vh - 0.5rem - 2rem);
+		/* 2rem for the footer */
 		overflow-y: auto;
 	}
 
@@ -54,9 +59,38 @@ nav>ul {
 	}
 
 	main {
-		margin-inline-start: 20rem;
+		margin-inline-start: calc(var(--sidebar-width) + var(--sidebar-gap));
+	}
+
+	main .restrained {
 		width: 60rem;
-		max-width: calc(98vw - 20rem);
+		max-width: calc(98vw - (var(--sidebar-width) + var(--sidebar-gap)));
+	}
+
+	main .meeting-container {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, 40rem);
+		gap: 1rem;
+	}
+
+	.meeting>details>pre {
+		position: absolute;
+		margin: 0;
+		padding: 1rem;
+		background-color: light-dark(white, black);
+		color: light-dark(black, white);
+		max-width: var(--details-popup-width);
+	}
+
+	footer {
+		position: fixed;
+		left: 0;
+		bottom: 0;
+		width: var(--sidebar-width);
+	}
+
+	footer>p {
+		margin: 0;
 	}
 }
 
@@ -64,54 +98,72 @@ select {
 	font-size: inherit;
 }
 
-ul.clashing li {
+ol.clashing li {
 	border-block-end: var(--totally-rules) solid currentColor;
 }
 
 .meeting {
-	border-radius: 0.5em;
-	padding: 0 1em;
-	margin-block-end: 1em;
+	--accent-color: black;
+	border-radius: 0.5rem;
+	margin-block-end: 1rem;
+	border: 4px solid var(--accent-color);
+}
+
+.meeting>* {
+	padding-inline: 1rem;
+}
+
+.meeting>div {
+	background-color: var(--accent-color);
+	color: contrast-color(var(--accent-color));
+}
+
+.meeting>div>h4 {
+	margin: 0;
+	padding-block-start: 0.5rem;
+}
+
+.meeting>div>p {
+	margin: 0;
+	padding-block-start: 0.25rem;
+	padding-block-end: 0.5rem;
+	font-size: 0.8rem;
+	display: flex;
+	justify-content: space-between;
+}
+
+.meeting>dl {
+	padding-block: 0;
+}
+
+.meeting>details {
+	margin-block-end: 1rem;
 }
 
 .meeting.match-exact {
-	border: 4px solid var(--exact);
+	--accent-color: var(--exact);
 }
 
 .meeting.match-subset {
-	border: 4px solid var(--subset);
+	--accent-color: var(--subset);
 }
 
 .meeting.match-miss {
-	border: 4px solid var(--nope);
+	--accent-color: var(--nope);
 }
 
 .meeting.invalid {
-	border: 4px dashed var(--invalid);
+	--accent-color: var(--invalid);
+	border: 4px dashed var(--accent-color);
 }
 
 .meeting.cancelled {
-	border: 4px solid var(--cancelled);
+	--accent-color: var(--cancelled);
 }
 
 :target.meeting {
 	outline: 2px solid var(--highlight);
 	outline-offset: 6px;
-}
-
-.meeting>:first-child {
-	margin-block-end: 0;
-}
-
-.meeting>p {
-	margin-block-start: 0;
-	font-size: 0.8em;
-	display: flex;
-	justify-content: space-between;
-}
-
-.meeting>details:not([open]) {
-	margin-block-end: 1rem;
 }
 
 dl {
@@ -137,11 +189,8 @@ pre {
 }
 
 table {
-	margin: auto;
 	border-collapse: collapse;
-	position: relative;
-	left: 0;
-	right: 0;
+	width: 100%;
 }
 
 th {
@@ -150,7 +199,7 @@ th {
 
 th,
 td {
-	padding-inline: 0.5em;
+	padding-inline: 0.5rem;
 }
 
 thead tr:first-child {
