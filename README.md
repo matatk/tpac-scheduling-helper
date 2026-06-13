@@ -59,7 +59,7 @@ There's a repo containing some example (and test) TPAC planning issues. You can 
 
 ```sh
 tpac-scheduling-helper \
-	--repo matatk/tpac-scheduling-helper-test-issues-1 \
+	--repo matatk/tpac-scheduling-helper-test-issues \
 	--meetings schedule.ics \
 	--output tpac.html
 ```
