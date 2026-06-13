@@ -40,7 +40,7 @@ Technical dependencies are:
 
 2. Run the script, which will:
 
-   - Download the latest TPAC schedule (from the W3C Team) as an HTML file, or it will re-use an existing copy.
+   - Download the latest TPAC schedule (from the W3C Team) as an ICS file, or it will re-use an existing copy.
 	
    - Check for scheduling conflicts, and for meetings that may have been moved.
 
@@ -60,7 +60,7 @@ There's a repo containing some example (and test) TPAC planning issues. You can 
 ```sh
 tpac-scheduling-helper \
 	--repo matatk/tpac-scheduling-helper-test-issues-1 \
-	--meetings schedule.html \
+	--meetings schedule.ics \
 	--output tpac.html
 ```
 
@@ -169,5 +169,3 @@ If you're doing scheduling for a small group, but are referring to meeting issue
 * Further improvements in the output HTML.
 
 * (Possibly) using the GitHub API directly.
-
-* Investigate wether there is/could be an API for querying the W3C Calendar.
