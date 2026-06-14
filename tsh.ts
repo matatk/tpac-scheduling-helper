@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'fs'
+import path from 'path'
 
 import { hideBin } from 'yargs/helpers'
 import yargs from 'yargs'
@@ -16,6 +17,7 @@ import type { CombinedNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/get-issues.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
+const STYLE_FILE = path.join(import.meta.dirname, 'style.css')
 
 function errorOut(...args: any) {
 	console.error(...args)
@@ -205,7 +207,7 @@ function main() {
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-		style: 'style.css',
+		style: STYLE_FILE,
 		myName: MY_NAME,
 	})
 
