@@ -18,6 +18,7 @@ interface OutputInfo {
 	invalidMeetings: Partial<Meeting>[]
 	movedMeetings: Meeting[]
 	myName: string
+	myUrl: string
 	peopleDefinitelyClashingMeetings: PersonClashingMeetings
 	peopleNearlyClashingMeetings: PersonClashingMeetings
 	personDayGaps: PersonDayGaps
@@ -58,6 +59,7 @@ export function makeHtml({
 	invalidMeetings,
 	movedMeetings,
 	myName,
+	myUrl,
 	peopleDefinitelyClashingMeetings,
 	peopleNearlyClashingMeetings,
 	personDayGaps,
@@ -145,10 +147,9 @@ export function makeHtml({
 				</ul>
 			</nav>
 			<main>`
-	// FIXME: I don't know my name, but I know my URL...
 	const htmlEnd = `</main>
 		<footer>
-			<p>Generated with <a href="https://github.com/matatk/tpac-scheduling-helper">${myName}</a>.</p>
+			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
 		</footer>
 		</body></html>`
 

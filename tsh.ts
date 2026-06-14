@@ -17,9 +17,10 @@ import type { CombinedNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/get-issues.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
+const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
 const STYLE_FILE = path.join(import.meta.dirname, 'style.css')
 
-function errorOut(...args: any) {
+function errorOut(...args: unknown[]) {
 	console.error(...args)
 	process.exit(42)
 }
@@ -35,12 +36,12 @@ function getArgs() {
 			array: true,
 			description: 'People (rather, their GitHub login names) who you want to consider as possible alternatives to attend meetings in the event of clashes. By default, all people referenced by the found issues will be considered as possible alternative meeting attendees.\n\nYou might want to use this if you run the tool from the perspective of different groups, e.g. a WG, or those of your colleagues who are attending TPAC.\n',
 			coerce: alts => {
-				const flat = []
+				const flat: string[] = []
 				for (const alt of alts) {
 					if (typeof alt === 'string') {
 						flat.push(alt)
 					} else {
-						flat.push(...alt)
+						flat.push(...alt as string[])
 					}
 				}
 				return flat
@@ -209,6 +210,7 @@ function main() {
 		personDayGaps,
 		style: STYLE_FILE,
 		myName: MY_NAME,
+		myUrl: MY_URL,
 	})
 
 	fs.writeFileSync(args.output, html)
