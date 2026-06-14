@@ -39,61 +39,6 @@ nav>ul {
 	line-height: normal;
 }
 
-@media screen and (min-width: 80rem) {
-	body {
-		width: auto;
-	}
-
-	nav {
-		position: sticky;
-		top: 0.5rem;
-		width: var(--sidebar-width);
-		float: left;
-		max-height: calc(100vh - 0.5rem - 2rem);
-		/* 2rem for the footer */
-		overflow-y: auto;
-	}
-
-	nav>h2 {
-		margin-block-start: 0;
-	}
-
-	main {
-		margin-inline-start: calc(var(--sidebar-width) + var(--sidebar-gap));
-	}
-
-	main .restrained {
-		width: 60rem;
-		max-width: calc(98vw - (var(--sidebar-width) + var(--sidebar-gap)));
-	}
-
-	main .meeting-container {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, 40rem);
-		gap: 1rem;
-	}
-
-	.meeting>details>pre {
-		position: absolute;
-		margin: 0;
-		padding: 1rem;
-		background-color: light-dark(white, black);
-		color: light-dark(black, white);
-		max-width: var(--details-popup-width);
-	}
-
-	footer {
-		position: fixed;
-		left: 0;
-		bottom: 0;
-		width: var(--sidebar-width);
-	}
-
-	footer>p {
-		margin: 0;
-	}
-}
-
 select {
 	font-size: inherit;
 }
@@ -103,9 +48,8 @@ ol.clashing li {
 }
 
 .meeting {
-	--accent-color: black;
-	border-radius: 0.5rem;
 	margin-block-end: 1rem;
+	border-radius: 0.5rem;
 	border: 4px solid var(--accent-color);
 }
 
@@ -134,12 +78,8 @@ ol.clashing li {
 	justify-content: space-between;
 }
 
-.meeting>dl {
-	padding-block: 0;
-}
-
-.meeting>details {
-	margin-block-end: 1rem;
+.meeting a {
+	word-break: break-all;
 }
 
 .meeting.match-exact {
@@ -171,6 +111,7 @@ ol.clashing li {
 dl {
 	display: grid;
 	grid-template-columns: max-content auto;
+	padding-block: 0;
 }
 
 dt {
@@ -179,6 +120,10 @@ dt {
 
 dt::after {
 	content: ':'
+}
+
+details {
+	margin-block-end: 1rem;
 }
 
 summary {
@@ -220,4 +165,63 @@ tr:last-child {
 table ul {
 	list-style-type: none;
 	padding: 0;
+}
+
+@media screen and (min-width: 80rem) {
+	body {
+		width: auto;
+	}
+
+	nav {
+		position: sticky;
+		top: 0.5rem;
+		width: var(--sidebar-width);
+		float: left;
+		max-height: calc(100vh - 0.5rem - 2rem);
+		/* 2rem for the footer */
+		overflow-y: auto;
+	}
+
+	nav>h2 {
+		margin-block-start: 0;
+	}
+
+	main {
+		margin-inline-start: calc(var(--sidebar-width) + var(--sidebar-gap));
+	}
+
+	main .restrained {
+		width: 60rem;
+		max-width: calc(98vw - (var(--sidebar-width) + var(--sidebar-gap)));
+	}
+
+	main .meeting-container {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, 40rem);
+		gap: 1rem;
+	}
+
+	.meeting {
+		margin-block-end: 0;
+	}
+
+	pre {
+		position: absolute;
+		margin: 0;
+		padding: 1rem;
+		background-color: light-dark(white, black);
+		color: light-dark(black, white);
+		max-width: var(--details-popup-width);
+	}
+
+	footer {
+		position: fixed;
+		left: 0;
+		bottom: 0;
+		width: var(--sidebar-width);
+	}
+
+	footer>* {
+		margin: 0;
+	}
 }
