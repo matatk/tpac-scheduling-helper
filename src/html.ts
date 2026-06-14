@@ -155,8 +155,8 @@ export function makeHtml({
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`
 
-	if (html) html += section(3, false, invalidId, invalidHeading, [], outputUnprocessableMeetings(invalidMeetings, equivalents, 'invalid'))
-	if (haveMoved) html += section(3, false, movedId, movedHeading, [], outputMeetings(movedMeetings, equivalents))
+	if (html) html += section(3, false, invalidId, invalidHeading, [], outputUnprocessableMeetings(4, invalidMeetings, equivalents, 'invalid'))
+	if (haveMoved) html += section(3, false, movedId, movedHeading, [], outputMeetings(4, movedMeetings, equivalents))
 	if (havePossibleDuplicates) {
 		html += section(3, true, possibleDuplicatesId, possibleDuplicatesHeading, [
 			'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>',
@@ -167,7 +167,7 @@ export function makeHtml({
 	if (haveMeetings) html += section(3, false, plannedId, plannedHeading, [
 		section(4, true, 'planned-summary', 'Summary', [], plannedLinks),
 	], planned)
-	if (haveCancelled) html += section(3, false, cancelledId, cancelledHeading, [], outputUnprocessableMeetings(cancelledMeetings, equivalents, 'cancelled'))
+	if (haveCancelled) html += section(3, false, cancelledId, cancelledHeading, [], outputUnprocessableMeetings(4, cancelledMeetings, equivalents, 'cancelled'))
 
 	html += '</section>'
 
@@ -223,16 +223,16 @@ function outputDayMeetings(dms: DayMeetings, equivalents: CombinedNames): string
 	for (const day of dms.keys()) {
 		const meetings = dms.get(day)!
 		html += section(4, false, day, pretty(day), [],
-			meetings.length > 0 ? outputMeetings(meetings, equivalents) : '<p>(none)</p>')
+			meetings.length > 0 ? outputMeetings(5, meetings, equivalents) : '<p>(none)</p>')
 	}
 
 	return html
 }
 
 // TODO: DRY with outputUnprocessableMeetings()
-function outputMeetings(pms: Meeting[], equivalents: CombinedNames): string {
+function outputMeetings(meetingsLevel: number, meetings: Meeting[], equivalents: CombinedNames): string {
 	return '<div class="meeting-container">' +
-		pms.map(meeting => htmlForMeeting(meeting, equivalents)).join('\n') +
+		meetings.map(meeting => htmlForMeeting(meetingsLevel, meeting, equivalents)).join('\n') +
 		'</div>'
 }
 
@@ -343,7 +343,11 @@ function htmlEscapeThatNeedsImproving(text?: string): string {
 	return text ? text.replace('<', '&lt;').replace('>', '&gt;') : '???'
 }
 
-function htmlMeetingHeader(meeting: Partial<Meeting>, nature: Match | UnprocessableReason): string {
+function htmlMeetingHeader(
+	headingLevel: number,
+	meeting: Partial<Meeting>,
+	nature: Match | UnprocessableReason,
+): string {
 	let klass: string
 
 	switch (nature) {
@@ -356,7 +360,7 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, nature: Match | Unprocessa
 
 	return `<div id="${String(meeting.tag)}" class="meeting ${klass}">
 		<div>
-			<h4>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h4>
+			<h${String(headingLevel)}>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h${String(headingLevel)}>
 			<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>
 		</div>
 		<dl>
@@ -364,7 +368,7 @@ function htmlMeetingHeader(meeting: Partial<Meeting>, nature: Match | Unprocessa
 			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
 }
 
-function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
+function htmlForMeeting(headingLevel: number, meeting: Meeting, combined: CombinedNames): string {
 	let out = ''
 
 	if (meeting.match === 'mismatch' && meeting.day !== meeting.calendarDay) {
@@ -391,11 +395,11 @@ function htmlForMeeting(meeting: Meeting, combined: CombinedNames): string {
 	out += '</div>'
 
 	// TODO: Make the mapping of condition to string more type-y?
-	return htmlMeetingHeader(meeting, meeting.match) + out
+	return htmlMeetingHeader(headingLevel, meeting, meeting.match) + out
 }
 
-function htmlForPartialMeeting(meeting: Partial<Meeting>, combined: CombinedNames, reason: UnprocessableReason): string {
-	let out = htmlMeetingHeader(meeting, reason)
+function htmlForPartialMeeting(headingLevel: number, meeting: Partial<Meeting>, combined: CombinedNames, reason: UnprocessableReason): string {
+	let out = htmlMeetingHeader(headingLevel, meeting, reason)
 
 	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
 	out += `<dt>Our day</dt><dd>${meeting.day ? pretty(meeting.day) : '???'}</dd>`
@@ -504,12 +508,12 @@ function htmlAlternativesOrNot(m: Meeting): string {
 }
 
 // TODO: DRY with outputMeetings()
-function outputUnprocessableMeetings(ims: Partial<Meeting>[], equivalents: CombinedNames, reason: UnprocessableReason): string {
+function outputUnprocessableMeetings(meetingsLevel: number, ims: Partial<Meeting>[], equivalents: CombinedNames, reason: UnprocessableReason): string {
 	if (ims.length === 0) return ''
 	let html = ''
 
 	ims.forEach(p => {
-		html += htmlForPartialMeeting(p, equivalents, reason)
+		html += htmlForPartialMeeting(meetingsLevel, p, equivalents, reason)
 	})
 
 	return '<div class="meeting-container">' +

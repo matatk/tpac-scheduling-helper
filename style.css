@@ -118,9 +118,11 @@ ol.clashing li {
 	color: contrast-color(var(--accent-color));
 }
 
-.meeting>div>h4 {
+/* This is the heading, but we know not which level */
+.meeting>div>:first-child {
 	margin: 0;
 	padding-block-start: 0.5rem;
+	font-size: 1rem;
 }
 
 .meeting>div>p {
