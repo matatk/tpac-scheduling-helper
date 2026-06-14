@@ -78,12 +78,6 @@ function getArgs() {
 		.example('--repo w3c/apa-tpac-meetings', 'Query the "w3c/apa-tpac-meetings" repo, use the default label, or that specified with the --label option.\n')
 		.example('--repo w3c/apa --repo w3c/aria', 'Query multiple repos.\n')
 		.example('--repo w3c/apa tpac-2025 --repo w3c/aria', 'Use a custom label for the "w3c/apa" repo.\n')
-		.option('style', {
-			alias: 's',
-			type: 'string',
-			description: 'Name of CSS file for styling the HTML output. This will be written directly into the output HTML, so that it\'s stand-alone.\n',
-			default: 'style.css',
-		})
 		.option('year', {
 			alias: 'y',
 			choices: TpacYears,
@@ -107,7 +101,6 @@ function getArgs() {
 		})
 		.group([ 'meetings', 'output', 'repo' ], 'Vital info:')
 		.group([ 'alternatives', 'combine', 'label', 'gh' ], 'Issue/filtering options:')
-		.group([ 'style' ], 'Output options:')
 		.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
 		.group([ 'help', 'version' ], 'Workhorses:')
 		.conflicts('query-result', 'save-result')
@@ -212,7 +205,7 @@ function main() {
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-		style: args.style,
+		style: 'style.css',
 		myName: MY_NAME,
 	})
 
