@@ -155,47 +155,62 @@ export function makeHtml({
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`
 
-	if (html) html += section(3, false, invalidId, invalidHeading, [], outputUnprocessableMeetings(4, invalidMeetings, equivalents, 'invalid'))
-	if (haveMoved) html += section(3, false, movedId, movedHeading, [], outputMeetings(4, movedMeetings, equivalents))
-	if (havePossibleDuplicates) {
-		html += section(3, true, possibleDuplicatesId, possibleDuplicatesHeading, [
-			'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>',
-			'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>',
-		], outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents))
-	}
-	if (haveUnassigned) html += section(3, true, unassignedId, unassignedHeading, [], outputUnassignedMeetings(unassignedMeetings, equivalents))
-	if (haveMeetings) html += section(3, false, plannedId, plannedHeading, [
-		section(4, true, 'planned-summary', 'Summary', [], plannedLinks),
-	], planned)
-	if (haveCancelled) html += section(3, false, cancelledId, cancelledHeading, [], outputUnprocessableMeetings(4, cancelledMeetings, equivalents, 'cancelled'))
+	if (html) html += sectionWithLandmark(3, false, invalidId, invalidHeading,
+		outputUnprocessableMeetings(4, invalidMeetings, equivalents, 'invalid'))
+	if (haveMoved) html += sectionWithLandmark(3, false, movedId, movedHeading,
+		outputMeetings(4, movedMeetings, equivalents))
+	if (havePossibleDuplicates) html += sectionWithLandmark(3, true, possibleDuplicatesId, possibleDuplicatesHeading,
+		'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>' +
+		'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>' +
+		outputPossibleDuplicateMeetings(repoPossibleDuplicates, equivalents))
+	if (haveUnassigned) html += sectionWithLandmark(3, true, unassignedId, unassignedHeading,
+		outputUnassignedMeetings(unassignedMeetings, equivalents))
+	if (haveMeetings) html += sectionWithLandmark(3, false, plannedId, plannedHeading,
+		sectionWithoutLandmark(4, true, 'Summary', plannedLinks) + planned)
+	if (haveCancelled) html += sectionWithLandmark(3, false, cancelledId, cancelledHeading,
+		outputUnprocessableMeetings(4, cancelledMeetings, equivalents, 'cancelled'))
 
 	html += '</section>'
 
 	html += `<section aria-labelledby="${personalResultsId}">
 		<h2 id="${personalResultsId}">${personalResultsHeading}</h2>`
 
-	if (haveDefinitelyClashing) html += section(3, true, clashingId, clashingHeading, [], outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents))
-	if (haveNearlyClashing) html += section(3, false, nearlyClashingId, nearlyClashingHeading, [], outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents))
+	if (haveDefinitelyClashing) html += sectionWithLandmark(3, true, clashingId, clashingHeading,
+		outputClashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents))
+	if (haveNearlyClashing) html += sectionWithLandmark(3, false, nearlyClashingId, nearlyClashingHeading,
+		outputClashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents))
 
-	html += section(3, false, timetableId, timetableHeading, [], outputTimetable(personDayMeetings, personDayGaps, equivalents))
+	html += sectionWithLandmark(3, false, timetableId, timetableHeading,
+		outputTimetable(personDayMeetings, personDayGaps, equivalents))
 
 	html += '</section>'
 
 	return html + htmlEnd
 }
 
-function section(
+function sectionWithLandmark(
 	headingLevel: number,
 	restrained: boolean,
 	id: string,
 	heading: string,
-	top: string[],
 	content: string,
 ): string {
 	const klass = restrained ? ' class="restrained"' : ''
 	return `<section aria-labelledby="${id}"${klass}>
 		<h${String(headingLevel)} id="${id}">${heading}</h${String(headingLevel)}>
-		${top.join('\n')}
+		${content}
+	</section>`
+}
+
+function sectionWithoutLandmark(
+	headingLevel: number,
+	restrained: boolean,
+	heading: string,
+	content: string,
+): string {
+	const klass = restrained ? ' class="restrained"' : ''
+	return `<section${klass}>
+		<h${String(headingLevel)}>${heading}</h${String(headingLevel)}>
 		${content}
 	</section>`
 }
@@ -222,7 +237,7 @@ function outputDayMeetings(dms: DayMeetings, equivalents: CombinedNames): string
 
 	for (const day of dms.keys()) {
 		const meetings = dms.get(day)!
-		html += section(4, false, day, pretty(day), [],
+		html += sectionWithoutLandmark(4, false, pretty(day),
 			meetings.length > 0 ? outputMeetings(5, meetings, equivalents) : '<p>(none)</p>')
 	}
 
