@@ -1,15 +1,16 @@
 #!/usr/bin/env node
+// FIXME: Now that we're using Temporal.PlainDateTime for the meeting times, detection of moved meetings should be a lot simpler. Probably good to still keep the day around becuase it helps UX having the day name.
 import fs from 'fs'
 import path from 'path'
 
 import { hideBin } from 'yargs/helpers'
 import yargs from 'yargs'
 
+import { makeMeetingListPage, makeSchedulingPage } from './src/html.ts'
 import TPACs from './src/tpacs.ts'
 import { TpacYears } from './src/tpacs.ts'
 import { categoriseMeetings } from './src/meeting.ts'
 import getIssues from './src/get-issues.ts'
-import { makeHtml } from './src/html.ts'
 import meetingFromIssue from './src/meeting-from-issue.ts'
 import processSchedule from './src/scheduling.ts'
 
@@ -146,13 +147,13 @@ function main() {
 function doScheduling(args: ArgumentsCamelCase<SchedulingArgs>) {
 	const equivalents: CombinedNames = new Map()
 	const issues: GhIssue[] = []
-	const tpac = TPACs[args.year]
+	const tpac = TPACs[args.year!]
 	const getCalendarInfo = tpac.makeGetter(args.meetings)
 
 	// FIXME: Figure out TypeScript/yargs workaround, and DRY with the below
 	if (args.combine) {
 		if (args.combine.length === 2 && args.combine.every(value => typeof value === 'string')) {
-			args.combine = [ args.combine ] as unknown as string[]
+			args.combine = [ args.combine ]
 		}
 		if (!args.combine.every(value =>
 			Array.isArray(value) && value.length === 2)) {
@@ -170,7 +171,7 @@ function doScheduling(args: ArgumentsCamelCase<SchedulingArgs>) {
 		console.log('Querying repo(s)...')
 
 		if (args.repo.length <= 2 && args.repo.every(value => typeof value === 'string')) {
-			args.repo = [ args.repo ] as unknown as string[]
+			args.repo = [ args.repo ]
 		}
 		if (!args.repo.every(value =>
 			Array.isArray(value) && value.length > 0 && value.length < 3)) {
@@ -214,7 +215,7 @@ function doScheduling(args: ArgumentsCamelCase<SchedulingArgs>) {
 		personDayGaps,
 	} = processSchedule(tpac.days, equivalents, args.alternatives!, validMeetings)
 
-	const html = makeHtml({
+	const html = makeSchedulingPage({
 		invalidMeetings,
 		validMeetings,
 		movedMeetings,
@@ -242,10 +243,17 @@ function doScheduling(args: ArgumentsCamelCase<SchedulingArgs>) {
 	}
 }
 
+// FIXME: actually, query repos for this one too, as then we can say which meetings we already have added!
 function generateMeetingList(args: ArgumentsCamelCase<GlobalArgs>) {
 	const tpac = TPACs[args.year!]
-	const getCalendarInfo = tpac.makeGetter(args.meetings)
-
+	const iterator = tpac.makeListGetter(args.meetings)
+	const events = iterator()
+	const html = makeMeetingListPage({
+		style: STYLE_FILE,
+		myName: MY_NAME,
+		myUrl: MY_URL,
+		events,
+	})
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output + '.')
 }

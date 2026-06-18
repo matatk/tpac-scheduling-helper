@@ -35,35 +35,27 @@ export default function meetingFromIssue(
 
 	const names = issue.assignees.map(assignee => assignee.login)
 	const uid = URL.parse(bodyInfo.calendarUrl?.replace(/\/$/, '') ?? '')?.pathname.split('/').at(-1)  // FIXME test
-	const calendarInfo = uid ? getter(uid) : {}
+	const calendarInfo = getter(uid ?? '')
 
-	const startOfDay = calendarInfo.day ? tpac[calendarInfo.day].midnight : undefined
-	const calendarStart = startOfDay && calendarInfo.start ?
-		timeStringToPlainDateTime(startOfDay, calendarInfo.start) : undefined
-	const calendarEnd = startOfDay && calendarInfo.end ?
-		timeStringToPlainDateTime(startOfDay, calendarInfo.end) : undefined
-	const match = calendarStart && calendarEnd && bodyInfo.start && bodyInfo.end ?
-		timeMatch(calendarStart, calendarEnd, bodyInfo.start, bodyInfo.end) : undefined
+	const match = calendarInfo.kind !== 'nonexistent'
+		? bodyInfo.start && bodyInfo.end
+			? timeMatch(calendarInfo.calendarStart, calendarInfo.calendarEnd, bodyInfo.start, bodyInfo.end)
+			: undefined
+		: undefined
 
 	return {
-		tag: meetingCounter++,
-		kind: calendarInfo.kind,
-		status: calendarInfo.status,
-		calendarTitle: calendarInfo.title,
-		title: issue.title,
-		calendarDay: calendarInfo.day,
-		day: bodyInfo.day,
-		calendarStart,
-		start: bodyInfo.start,
-		calendarEnd,
-		end: bodyInfo.end,
-		match,
-		calendarRoom: calendarInfo.room,
-		names: Array.from(new Set([ ...names, ...bodyInfo.extraPeople ])),
-		calendarUrl: bodyInfo.calendarUrl,
-		issueUrl: issue.url,
+		...calendarInfo,
 		alternatives: [], // NOTE: Only known after computing clashes and free times
+		day: bodyInfo.day,
+		end: bodyInfo.end,
+		issueUrl: issue.url,
+		kind: calendarInfo.kind,
+		match,
+		names: Array.from(new Set([ ...names, ...bodyInfo.extraPeople ])),
 		notes: bodyInfo.notes,
+		start: bodyInfo.start,
+		tag: meetingCounter++,
+		title: issue.title,
 	}
 }
 

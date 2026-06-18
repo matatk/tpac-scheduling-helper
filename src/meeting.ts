@@ -3,24 +3,20 @@ import { Temporal } from '@js-temporal/polyfill'
 import sort from './sort.ts'
 
 import type { Kind, Status } from './kind-status.ts'
+import type { CalendarMeetingInfo } from './schedule-info.ts'
 import type { Day } from './day.ts'
 
 const PDT = Temporal.PlainDateTime
 
-export interface Meeting {
+export interface Meeting extends CalendarMeetingInfo {
 	tag: number
 	kind: Kind
 	status: Status
-	calendarTitle: string
 	title: string
-	calendarDay: Day
 	day: Day
-	calendarStart: Temporal.PlainDateTime
 	start: Temporal.PlainDateTime
-	calendarEnd: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
 	match: Match
-	calendarRoom: string
 	names: string[]
 	calendarUrl: string
 	issueUrl: string
@@ -45,6 +41,7 @@ export type Clash = 'none' | 'overlap' | 'near'
 
 export type Match = 'exact' | 'subset' | 'mismatch'
 
+// FIXME: I think this is not used
 export function isMeeting(p: Partial<Meeting>): p is Meeting {
 	return !!p.tag &&
 		!!p.kind &&
@@ -58,7 +55,7 @@ export function isMeeting(p: Partial<Meeting>): p is Meeting {
 		!!p.calendarEnd &&
 		!!p.end &&
 		!!p.match &&
-		!!p.calendarRoom &&
+		!!p.room &&
 		!!p.names &&
 		!!p.calendarUrl &&
 		!!p.issueUrl &&

@@ -23,7 +23,7 @@ function mkMeetingStartEnd(
 		alternatives: [],
 		calendarDay: 'monday',
 		calendarEnd,
-		calendarRoom: '',
+		room: '',
 		calendarStart,
 		calendarTitle: '',
 		calendarUrl: '',

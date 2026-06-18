@@ -2,14 +2,27 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
+import { isMeeting } from './meeting.ts'
 import { repo } from './repo.ts'
 import sort from './sort.ts'
 
 import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
+import type { CalendarMeetingInfo } from './schedule-info.ts'
 
-interface OutputInfo {
+interface BaseOutputInfo {
+	myName: string
+	myUrl: string
+	style: string
+}
+
+// TODO: get DayMeetings into this?
+interface MeetingListPageOutputInfo extends BaseOutputInfo {
+	events: CalendarMeetingInfo[]
+}
+
+interface SchedulingPageOutputInfo extends BaseOutputInfo {
 	cancelledMeetings: Partial<Meeting>[]
 	dayMeetings: DayMeetings
 	equivalents: CombinedNames
@@ -17,24 +30,21 @@ interface OutputInfo {
 	haveNearlyClashing: boolean      // TODO: remove need for
 	invalidMeetings: Partial<Meeting>[]
 	movedMeetings: Meeting[]
-	myName: string
-	myUrl: string
 	peopleDefinitelyClashingMeetings: PersonClashingMeetings
 	peopleNearlyClashingMeetings: PersonClashingMeetings
 	personDayGaps: PersonDayGaps
 	personDayMeetings: PersonDayMeetings
 	repoPossibleDuplicates: RepoDuplicateMeetings
-	style: string
 	unassignedMeetings: Meeting[]
 	validMeetings: Meeting[]
 }
 
-type UnprocessableReason = 'invalid' | 'cancelled'
+type Nature = Omit<Status, 'confirmed'> | 'invalid' | Match
 
 const kindPretty: Record<Kind, string> = {
 	group: 'Group',
 	breakout: 'Breakout',
-	other: 'SOME OTHER KIND OF EVENT THAT I AM NOT SURE ABOUT',
+	other: 'Other',
 	nonexistent: "(doesn't exist)",
 } as const
 
@@ -50,7 +60,45 @@ const statusPretty: Record<Status, string> = {
 	cancelled: 'Cancelled',
 } as const
 
-export function makeHtml({
+const UNKNOWN_PROPERTY = '???'
+
+export function makeMeetingListPage({
+	myName,
+	myUrl,
+	style,
+	events,
+}: MeetingListPageOutputInfo): string {
+	const htmlStart = `<!DOCTYPE html>
+		<head>
+			<meta charset="utf-8">
+			<title>${myName}</title>
+			<meta name="color-scheme" content="dark light" />
+			<style>${fs.readFileSync(style, 'utf-8')}</style>
+		</head>
+		<body>
+			<header>
+				<h1>${myName}: Full Meeting List</h1>
+			</header>
+			<nav>nope</nav>
+			<main>
+				<div class="meeting-container">`
+
+	const htmlEnd = `</div>
+		</main>
+		<footer>
+			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
+		</footer>
+		</body></html>`
+
+	let htmlMiddle = ''
+	for (const event of events) {
+		htmlMiddle += meetingCard(1, event)
+	}
+
+	return htmlStart + htmlMiddle + htmlEnd
+}
+
+export function makeSchedulingPage({
 	cancelledMeetings,
 	dayMeetings,
 	equivalents,
@@ -68,7 +116,7 @@ export function makeHtml({
 	style,
 	unassignedMeetings,
 	validMeetings,
-}: OutputInfo): string {
+}: SchedulingPageOutputInfo): string {
 	const haveInvalid = invalidMeetings.length > 0
 	const haveMeetings = validMeetings.length > 0
 	const haveMoved = movedMeetings.length > 0
@@ -125,7 +173,7 @@ export function makeHtml({
 		</head>
 		<body>
 			<header>
-				<h1>${myName}</h1>
+				<h1>${myName}: Group Timetabling</h1>
 			</header>
 			<nav aria-labelledby="${navFilteringId}">
 				<h2 id=${navFilteringId}>${navFilteringHeading}</h2>
@@ -157,7 +205,7 @@ export function makeHtml({
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`
 
 	if (html) html += sectionWithLandmark(3, false, invalidId, invalidHeading,
-		unprocessableMeetingCards(4, invalidMeetings, equivalents, 'invalid'))
+		meetingCards(4, invalidMeetings, equivalents))
 	if (haveMoved) html += sectionWithLandmark(3, false, movedId, movedHeading,
 		meetingCards(4, movedMeetings, equivalents))
 	if (havePossibleDuplicates) html += sectionWithLandmark(3, true, possibleDuplicatesId, possibleDuplicatesHeading,
@@ -169,7 +217,7 @@ export function makeHtml({
 	if (haveMeetings) html += sectionWithLandmark(3, false, plannedId, plannedHeading,
 		sectionWithoutLandmark(4, true, 'Summary', plannedLinks) + planned)
 	if (haveCancelled) html += sectionWithLandmark(3, false, cancelledId, cancelledHeading,
-		unprocessableMeetingCards(4, cancelledMeetings, equivalents, 'cancelled'))
+		meetingCards(4, cancelledMeetings, equivalents))
 
 	html += '</section>'
 
@@ -245,8 +293,11 @@ function dayMeetingCards(dms: DayMeetings, equivalents: CombinedNames): string {
 	return html
 }
 
-// TODO: DRY with unprocessableMeetingCards()
-function meetingCards(meetingsLevel: number, meetings: Meeting[], equivalents: CombinedNames): string {
+function meetingCards(
+	meetingsLevel: number,
+	meetings: Meeting[] | Partial<Meeting>[],
+	equivalents: CombinedNames,
+): string {
 	return '<div class="meeting-container">' +
 		meetings.map(meeting => meetingCard(meetingsLevel, meeting, equivalents)).join('\n') +
 		'</div>'
@@ -350,7 +401,7 @@ function inlineSummary(meeting: Meeting, includeDay: boolean, combned: CombinedN
 	const movedMaybe = meeting.match === 'mismatch'
 		? ' (moved)'
 		: ''
-	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.calendarRoom}${nameHtml}`
+	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.room}${nameHtml}`
 }
 
 function htmlEscapeThatNeedsImproving(text?: string): string {
@@ -359,73 +410,111 @@ function htmlEscapeThatNeedsImproving(text?: string): string {
 
 function meetingCardHeader(
 	headingLevel: number,
+	meeting: CalendarMeetingInfo
+): string
+function meetingCardHeader(
+	headingLevel: number,
 	meeting: Partial<Meeting>,
-	nature: Match | UnprocessableReason,
+	valid: false,
+): string
+function meetingCardHeader(
+	headingLevel: number,
+	meeting: Meeting,
+	valid: true,
+): string
+function meetingCardHeader(
+	headingLevel: number,
+	meeting: CalendarMeetingInfo | Partial<Meeting>,
+	valid?: boolean,
 ): string {
-	let klass: string
+	const nature: Nature[] = []
+	const klasslist: string[] = []
 
-	switch (nature) {
-		case 'exact': klass = 'match-exact'; break
-		case 'subset': klass = 'match-subset'; break
-		case 'mismatch': klass = 'match-miss'; break
-		case 'cancelled': klass = 'cancelled'; break
-		case 'invalid': klass = 'invalid'; break
+	if ('match' in meeting && meeting.match) nature.push(meeting.match)
+	if (meeting.status) nature.push(meeting.status)
+	if (valid === false) nature.push('invalid')
+
+	for (const state of nature) {
+		switch (state) {
+			case 'exact': klasslist.push('match-exact'); break
+			case 'subset': klasslist.push(' match-subset'); break
+			case 'mismatch': klasslist.push('match-miss'); break
+			case 'cancelled': klasslist.push('state-cancelled'); break
+			case 'tentative': klasslist.push('state-tentative'); break
+			case 'invalid': klasslist.push('nature-invalid'); break
+		}
 	}
 
-	return `<div id="${String(meeting.tag)}" class="meeting ${klass}">
+	const klasses = klasslist.length > 0
+		? ' ' + klasslist.join(' ')
+		: ''
+
+	// TODO: do this a different way? somehow DRY with the full card function?
+	const isFullMeeting = isMeeting(meeting)
+	const id = isFullMeeting ? ` id="${String(meeting.tag)}"` : ''
+	const vitals = isFullMeeting ? `<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>` : ''
+
+	return `<div${id} class="meeting${klasses}">
 		<div>
 			<h${String(headingLevel)}>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h${String(headingLevel)}>
-			<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>
+			${vitals}
 		</div>
 		<dl>
 			<dt>Kind</dt><dd>${meeting.kind ? kindPretty[meeting.kind] : '???'}</dd>
 			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
 }
 
-function meetingCard(headingLevel: number, meeting: Meeting, combined: CombinedNames): string {
+function meetingCard(
+	headingLevel: number,
+	meeting: CalendarMeetingInfo,
+): string
+function meetingCard(
+	headingLevel: number,
+	meeting: Meeting | Partial<Meeting>,
+	combined: CombinedNames,
+): string
+function meetingCard(
+	headingLevel: number,
+	meeting: CalendarMeetingInfo | Meeting | Partial<Meeting>,
+	combined?: CombinedNames,
+): string {
+	const isFullMeeting = isMeeting(meeting)
+	const matchInMeeting = 'match' in meeting
 	let out = ''
 
-	if (meeting.match === 'mismatch' && meeting.day !== meeting.calendarDay) {
+	if (isFullMeeting) {
+		out += meetingCardHeader(headingLevel, meeting, true)
+	}	else if ('title' in meeting) {
+		out += meetingCardHeader(headingLevel, meeting, false)
+	} else {
+		out += meetingCardHeader(headingLevel, meeting as CalendarMeetingInfo)
+	}
+
+	// FIXME: Don't include day - or include it with date - if outside of TPAC week
+	if (matchInMeeting && meeting.match === 'mismatch' && meeting.day !== meeting.calendarDay) {
 		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 		out += `<dt>Our day</dt><dd>${pretty(meeting.day)}</dd>`
 	} else {
 		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
 	}
 
-	if (meeting.match !== 'exact') {
+	if (matchInMeeting && meeting.match !== 'exact') {
 		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 		out += `<dt>Our time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
 	} else {
-		out += `<dt>Time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
+		out += `<dt>Time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
 	}
 
-	out += peopleAndUrls(meeting, combined)
-	out += `<dt>Time match</dt><dd>${matchPretty[meeting.match]}</dd>`
-	out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
+	out += `<dt>Room</dt><dd>${meeting.room ?? '???'}</dd>`
+	if (combined && 'names' in meeting) out += `<dt>People</dt><dd>${meeting.names ? people(meeting.names, combined) : '???'}</dd>`
+	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl ?? '???'}">${meeting.calendarUrl ?? '???'}</a></dd>`
+	if ('issueUrl' in meeting) out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl ?? '???'}">${meeting.issueUrl ?? '???'}</a></dd>`
+
+	if (matchInMeeting && meeting.match) out += `<dt>Time match</dt><dd>${matchPretty[meeting.match]}</dd>`
+	if ('alternatives' in meeting) out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
 	out += '</dl>'
 
 	out += notes(meeting)
-
-	out += '</div>'
-
-	// TODO: Make the mapping of condition to string more type-y?
-	return meetingCardHeader(headingLevel, meeting, meeting.match) + out
-}
-
-function meetingCardForPartial(headingLevel: number, meeting: Partial<Meeting>, combined: CombinedNames, reason: UnprocessableReason): string {
-	let out = meetingCardHeader(headingLevel, meeting, reason)
-
-	out += `<dt>Calendar day</dt><dd>${meeting.calendarDay ? pretty(meeting.calendarDay) : '???'}</dd>`
-	out += `<dt>Our day</dt><dd>${meeting.day ? pretty(meeting.day) : '???'}</dd>`
-
-	out += `<dt>Calendar time</dt><dd>${meeting.calendarStart ? dtf(meeting.calendarStart) : '??'}&ndash;${meeting.calendarEnd ? dtf(meeting.calendarEnd) : '??'}</dd>`
-	out += `<dt>Our time</dt><dd>${meeting.start ? dtf(meeting.start) : '??'}&ndash;${meeting.end ? dtf(meeting.end) : '??'}</dd>`
-
-	out += peopleAndUrls(meeting, combined)
-
-	out += '</dl>'
-	out += notes(meeting)
-
 	out += '</div>'
 
 	return out
@@ -476,15 +565,6 @@ function unassignedList(unassigned: Meeting[], combined: CombinedNames): string 
 	return html
 }
 
-function peopleAndUrls(meeting: Partial<Meeting>, combined: CombinedNames): string {
-	let out = ''
-	out += `<dt>Room</dt><dd>${meeting.calendarRoom ?? '???'}</dd>`
-	out += `<dt>People</dt><dd>${meeting.names ? people(meeting.names, combined) : '???'}</dd>`
-	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl ?? '???'}">${meeting.calendarUrl ?? '???'}</a></dd>`
-	out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl ?? '???'}">${meeting.issueUrl ?? '???'}</a></dd>`
-	return out
-}
-
 function notes(meeting: Partial<Meeting>): string {
 	if (meeting.notes) {
 		return `<details>
@@ -501,15 +581,19 @@ function people(names: string[], combined: CombinedNames): string {
 		: name).join(', ')
 }
 
-function dtf(pdt: Temporal.PlainDateTime): string {
-	return pdt.toLocaleString(undefined, {
-		hour: '2-digit',
-		minute: '2-digit',
-	})
+function dtf(pdt?: Temporal.PlainDateTime): string {
+	return pdt
+		? pdt.toLocaleString(undefined, {
+			hour: '2-digit',
+			minute: '2-digit',
+		})
+		: UNKNOWN_PROPERTY
 }
 
-function pretty(thing: string): string {
-	return thing.charAt(0).toUpperCase() + thing.slice(1)
+function pretty(thing?: string): string {
+	return thing
+		? thing.charAt(0).toUpperCase() + thing.slice(1)
+		: UNKNOWN_PROPERTY
 }
 
 function prettyAlts(m: Meeting): string {
@@ -519,18 +603,4 @@ function prettyAlts(m: Meeting): string {
 function alternativesOrNot(m: Meeting): string {
 	if (m.alternatives.length > 0) return `<p><strong>Possible alternative attendees:</strong> ${prettyAlts(m)}</p>`
 	return ''
-}
-
-// TODO: DRY with meetingCards()
-function unprocessableMeetingCards(meetingsLevel: number, ims: Partial<Meeting>[], equivalents: CombinedNames, reason: UnprocessableReason): string {
-	if (ims.length === 0) return ''
-	let html = ''
-
-	ims.forEach(p => {
-		html += meetingCardForPartial(meetingsLevel, p, equivalents, reason)
-	})
-
-	return '<div class="meeting-container">' +
-		html +
-		'</div>'
 }
