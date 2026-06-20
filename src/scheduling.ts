@@ -3,7 +3,7 @@ import { Temporal } from '@js-temporal/polyfill'
 import { clashes, isMeetingInGap, sameActualMeeting } from './meeting.ts'
 import ClashingMeetingsSet from './clashing-meetings-set.ts'
 import { days } from './day.ts'
-import { repo } from './repo.ts'
+import { repoFromIssueUrl } from './repo.ts'
 
 import type { Gap, Meeting } from './meeting.ts'
 import type { Day } from './day.ts'
@@ -102,7 +102,7 @@ export default function processSchedule(
 		}
 
 		addMeeting(dayMeetings, meeting.calendarDay, meeting)
-		addMeeting(repoMeetings, repo(meeting.issueUrl), meeting)
+		addMeeting(repoMeetings, repoFromIssueUrl(meeting.issueUrl)!, meeting)
 	}
 
 	// Now figure out, for each person, each day, and each meeting:

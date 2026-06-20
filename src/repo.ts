@@ -1,4 +1,4 @@
-// TODO: test
-export function repo(issueUrl: string): string {
-	return issueUrl.slice(19).split('/').slice(0, -2).join('/')
+export function repoFromIssueUrl(issueUrl: string): string | undefined {
+	const repo = issueUrl.split('/').slice(-4, -2).join('/')
+	return repo.length > 0 ? repo : undefined
 }

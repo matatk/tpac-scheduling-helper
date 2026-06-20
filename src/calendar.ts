@@ -10,8 +10,11 @@ import { days } from './day.ts'
 
 import type { Kind, Status } from './kind-status.ts'
 import type { Day } from './day.ts'
+import type { Meeting } from './meeting.ts'
 
-export interface CalendarMeetingInfo {
+export type CalendarMeetingGetter = (uid: string) => CalendarMeeting | CalendarMeetingNonexistent
+
+export interface CalendarMeeting {
 	calendarDay: Day
 	calendarEnd: Temporal.PlainDateTime
 	calendarStart: Temporal.PlainDateTime
@@ -22,31 +25,35 @@ export interface CalendarMeetingInfo {
 	status: Status
 }
 
-interface CalendarMeetingInfoNonexistent {
+interface CalendarMeetingNonexistent {
 	kind: 'nonexistent'
 }
 
-export type EventInfoIterator = () => CalendarMeetingInfo[]
-export type EventInfoIteratorGetterMaker = (localFile: string) => EventInfoIterator
+const icsEvents: Record<string, IcsEvent> = {}
 
-export type EventInfoGetter = (uid: string) => CalendarMeetingInfo | CalendarMeetingInfoNonexistent
-export type EventInfoGetterMaker = (localFile: string) => EventInfoGetter
-
-const events: Record<string, IcsEvent> = {}
-
-export function makeEventInfoGetter(calendarUrl: string, localFile: string): EventInfoGetter {
+export function calendarInit(calendarUrl: string, localFile: string) {
 	const calendar = convertIcsCalendar(undefined, getSchedule(calendarUrl, localFile))
 	// TODO: can do this with reduce and build the thing in this scope, as with the 'iterator' below?
 	for (const event of calendar.events ?? []) {
-		events[event.uid] = event
+		icsEvents[event.uid] = event
 	}
-	return scheduleInfo2025
 }
 
-export function makeEventInfoIterator(calendarUrl: string, localFile: string): EventInfoIterator {
-	const calendar = convertIcsCalendar(undefined, getSchedule(calendarUrl, localFile))
-	const meetings = calendar.events?.map(calendarInfoFrom) ?? []
-	return () => meetings
+export function calendarMeeting(uid: string): CalendarMeeting | CalendarMeetingNonexistent {
+	const event = icsEvents[uid]
+	if (!event) return { kind: 'nonexistent' }
+	return calendarInfoFrom(event)
+}
+
+export function calendarMeetingsZipped(plannedMeetings: Record<string, Partial<Meeting>[]> = {}) {
+	return Object.values(icsEvents).reduce((acc: (CalendarMeeting | Partial<Meeting>)[], icsEvent) => {
+		if (icsEvent.uid in plannedMeetings) {
+			acc.push(...plannedMeetings[icsEvent.uid]!)
+		} else {
+			acc.push(calendarInfoFrom(icsEvent))
+		}
+		return acc
+	}, [])
 }
 
 function getSchedule(scheduleUrl: string, path: string) {
@@ -79,7 +86,7 @@ function failed(event: IcsEvent, field: string): string {
 	return `Can't get ${field} from ICS entry: ${JSON.stringify(event, null, 2)}`
 }
 
-function calendarInfoFrom(event: IcsEvent): CalendarMeetingInfo {
+function calendarInfoFrom(event: IcsEvent): CalendarMeeting {
 	const title = event.summary
 	const day = getDay(event.start.local?.date.getDay())
 	if (!day) throw new Error(failed(event, 'day'))
@@ -112,10 +119,4 @@ function calendarInfoFrom(event: IcsEvent): CalendarMeetingInfo {
 		room: room,
 		status,
 	}
-}
-
-function scheduleInfo2025(uid: string): CalendarMeetingInfo | CalendarMeetingInfoNonexistent {
-	const event = events[uid]
-	if (!event) return { kind: 'nonexistent' }
-	return calendarInfoFrom(event)
 }

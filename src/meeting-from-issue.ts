@@ -5,9 +5,9 @@ import { Temporal } from '@js-temporal/polyfill'
 import { isDay } from './day.ts'
 import { timeMatch } from './meeting.ts'
 
+import type { CalendarMeetingGetter } from './calendar.ts'
 import type { Day } from './day.ts'
-import type { EventInfoGetter } from './schedule-info.ts'
-import type { GhIssue } from './get-issues.ts'
+import type { GhIssue } from './query-issues.ts'
 import type { Meeting } from './meeting.ts'
 import type { TpacDays } from './tpacs.ts'
 
@@ -27,15 +27,15 @@ let meetingCounter = 1
 
 export default function meetingFromIssue(
 	tpac: TpacDays,
-	getter: EventInfoGetter,
+	getter: CalendarMeetingGetter,
 	issue: GhIssue,
 ): Meeting | Partial<Meeting> {
 	const bodyInfo = parseBodyInfo(tpac, issue.body)
 	bodyInfo.extraPeople ??= []
 
 	const names = issue.assignees.map(assignee => assignee.login)
-	const uid = URL.parse(bodyInfo.calendarUrl?.replace(/\/$/, '') ?? '')?.pathname.split('/').at(-1)  // FIXME test
-	const calendarInfo = getter(uid ?? '')
+	const id = URL.parse(bodyInfo.calendarUrl?.replace(/\/$/, '') ?? '')?.pathname.split('/').at(-1)  // FIXME test
+	const calendarInfo = getter(id ?? '')
 
 	const match = calendarInfo.kind !== 'nonexistent'
 		? bodyInfo.start && bodyInfo.end
@@ -48,6 +48,7 @@ export default function meetingFromIssue(
 		alternatives: [], // NOTE: Only known after computing clashes and free times
 		day: bodyInfo.day,
 		end: bodyInfo.end,
+		id,
 		issueUrl: issue.url,
 		kind: calendarInfo.kind,
 		match,

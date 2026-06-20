@@ -29,6 +29,7 @@ function mkMeetingStartEnd(
 		calendarUrl: '',
 		day: 'monday',
 		end,
+		id: '',
 		issueUrl: '',
 		kind: 'group',
 		match: calStart || calEnd ? 'mismatch' : 'exact',

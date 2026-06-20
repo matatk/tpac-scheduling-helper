@@ -3,12 +3,12 @@ import { Temporal } from '@js-temporal/polyfill'
 import sort from './sort.ts'
 
 import type { Kind, Status } from './kind-status.ts'
-import type { CalendarMeetingInfo } from './schedule-info.ts'
+import type { CalendarMeeting } from './calendar.ts'
 import type { Day } from './day.ts'
 
 const PDT = Temporal.PlainDateTime
 
-export interface Meeting extends CalendarMeetingInfo {
+export interface Meeting extends CalendarMeeting {
 	tag: number
 	kind: Kind
 	status: Status
@@ -19,6 +19,7 @@ export interface Meeting extends CalendarMeetingInfo {
 	match: Match
 	names: string[]
 	calendarUrl: string
+	id: string
 	issueUrl: string
 	alternatives: string[]
 	notes?: string

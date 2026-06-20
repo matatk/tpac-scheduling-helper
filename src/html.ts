@@ -3,13 +3,13 @@ import fs from 'fs'
 import { Temporal } from '@js-temporal/polyfill'
 
 import { isMeeting } from './meeting.ts'
-import { repo } from './repo.ts'
+import { repoFromIssueUrl } from './repo.ts'
 import sort from './sort.ts'
 
 import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
-import type { CalendarMeetingInfo } from './schedule-info.ts'
+import type { CalendarMeeting } from './calendar.ts'
 
 interface BaseOutputInfo {
 	myName: string
@@ -19,7 +19,7 @@ interface BaseOutputInfo {
 
 // TODO: get DayMeetings into this?
 interface MeetingListPageOutputInfo extends BaseOutputInfo {
-	events: CalendarMeetingInfo[]
+	allMeetings: (CalendarMeeting | Partial<Meeting>)[]
 }
 
 interface SchedulingPageOutputInfo extends BaseOutputInfo {
@@ -66,7 +66,7 @@ export function makeMeetingListPage({
 	myName,
 	myUrl,
 	style,
-	events,
+	allMeetings,
 }: MeetingListPageOutputInfo): string {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
@@ -91,8 +91,8 @@ export function makeMeetingListPage({
 		</body></html>`
 
 	let htmlMiddle = ''
-	for (const event of events) {
-		htmlMiddle += meetingCard(1, event)
+	for (const meeting of allMeetings) {
+		htmlMiddle += meetingCard(1, meeting)
 	}
 
 	return htmlStart + htmlMiddle + htmlEnd
@@ -410,7 +410,7 @@ function htmlEscapeThatNeedsImproving(text?: string): string {
 
 function meetingCardHeader(
 	headingLevel: number,
-	meeting: CalendarMeetingInfo
+	meeting: CalendarMeeting
 ): string
 function meetingCardHeader(
 	headingLevel: number,
@@ -424,7 +424,7 @@ function meetingCardHeader(
 ): string
 function meetingCardHeader(
 	headingLevel: number,
-	meeting: CalendarMeetingInfo | Partial<Meeting>,
+	meeting: CalendarMeeting | Partial<Meeting>,
 	valid?: boolean,
 ): string {
 	const nature: Nature[] = []
@@ -451,14 +451,14 @@ function meetingCardHeader(
 
 	// TODO: do this a different way? somehow DRY with the full card function?
 	const isFullMeeting = isMeeting(meeting)
-	const id = isFullMeeting ? ` id="${String(meeting.tag)}"` : ''
-	const vitals = isFullMeeting ? `<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repo(meeting.issueUrl) : '???'}</span></p>` : ''
+	const tag = isFullMeeting ? ` id="${String(meeting.tag)}"` : ''
+	const vitals = isFullMeeting ? `<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repoFromIssueUrl(meeting.issueUrl) : '???'}</span></p>` : ''
 
-	return `<div${id} class="meeting${klasses}">
-		<div>
+	return `<div${tag} class="meeting${klasses}">
+		<hgroup>
 			<h${String(headingLevel)}>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h${String(headingLevel)}>
 			${vitals}
-		</div>
+		</hgroup>
 		<dl>
 			<dt>Kind</dt><dd>${meeting.kind ? kindPretty[meeting.kind] : '???'}</dd>
 			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
@@ -466,7 +466,7 @@ function meetingCardHeader(
 
 function meetingCard(
 	headingLevel: number,
-	meeting: CalendarMeetingInfo,
+	meeting: CalendarMeeting,
 ): string
 function meetingCard(
 	headingLevel: number,
@@ -475,19 +475,21 @@ function meetingCard(
 ): string
 function meetingCard(
 	headingLevel: number,
-	meeting: CalendarMeetingInfo | Meeting | Partial<Meeting>,
+	meeting: CalendarMeeting | Meeting | Partial<Meeting>,
 	combined?: CombinedNames,
 ): string {
 	const isFullMeeting = isMeeting(meeting)
 	const matchInMeeting = 'match' in meeting
 	let out = ''
+	let tail = ''
 
 	if (isFullMeeting) {
 		out += meetingCardHeader(headingLevel, meeting, true)
 	}	else if ('title' in meeting) {
 		out += meetingCardHeader(headingLevel, meeting, false)
 	} else {
-		out += meetingCardHeader(headingLevel, meeting as CalendarMeetingInfo)
+		out += meetingCardHeader(headingLevel, meeting as CalendarMeeting)
+		tail = calendarMeetingCardButton(meeting as CalendarMeeting)
 	}
 
 	// FIXME: Don't include day - or include it with date - if outside of TPAC week
@@ -511,13 +513,16 @@ function meetingCard(
 	if ('issueUrl' in meeting) out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl ?? '???'}">${meeting.issueUrl ?? '???'}</a></dd>`
 
 	if (matchInMeeting && meeting.match) out += `<dt>Time match</dt><dd>${matchPretty[meeting.match]}</dd>`
-	if ('alternatives' in meeting) out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
+	if (isFullMeeting) out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
 	out += '</dl>'
 
 	out += notes(meeting)
-	out += '</div>'
 
-	return out
+	return out + tail + '</div>'
+}
+
+function calendarMeetingCardButton(meeting: CalendarMeeting) {
+	return `<div><button>Attend this event</button></div>`
 }
 
 function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {

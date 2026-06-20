@@ -1,21 +1,32 @@
-// FIXME: test for breakout vs group? Don't think I am so far
 import { describe, expect, test } from 'vitest'
 
 import { Temporal } from '@js-temporal/polyfill'
 
-import { makeEventInfoGetter } from '../src/schedule-info'
+import { calendarInit, calendarMeeting, calendarMeetingsZipped } from '../src/calendar'
 
-describe('scheduleInfo2025()', () => {
-	const eventInfoGetter = makeEventInfoGetter(
+function setUp() {
+	calendarInit(
 		'https://www.w3.org/calendar/tpac2025/export/', // NOTE: trailing slash is required.
 		'cache/schedule-2025.ics')
+}
+
+describe('Converting all events', () => {
+	setUp()
+
+	test('The correct number of events are got, and converted', () => {
+		expect(calendarMeetingsZipped().length).toBe(209)
+	})
+})
+
+describe('Getting calendar info', () => {
+	setUp()
 
 	test('Invalid IDs should give rise to meetings flagged as nonexistent', () => {
-		expect(eventInfoGetter('moo')).toStrictEqual({ kind: 'nonexistent' })
+		expect(calendarMeeting('moo')).toStrictEqual({ kind: 'nonexistent' })
 	})
 
 	test('Detect a cancelled meeting', () => {
-		expect(eventInfoGetter('bae910d9-6349-4935-9f7f-ec924d6cfa08')).toStrictEqual({
+		expect(calendarMeeting('bae910d9-6349-4935-9f7f-ec924d6cfa08')).toStrictEqual({
 			calendarDay: 'friday',
 			calendarEnd: new Temporal.PlainDateTime(2025, 11, 14, 16),
 			calendarStart: new Temporal.PlainDateTime(2025, 11, 14, 14),
@@ -28,7 +39,7 @@ describe('scheduleInfo2025()', () => {
 	})
 
 	test('Getting info for a valid meeting', () => {
-		expect(eventInfoGetter('b7f653c4-107c-4190-97ac-e03d4adafa5f')).toStrictEqual({
+		expect(calendarMeeting('b7f653c4-107c-4190-97ac-e03d4adafa5f')).toStrictEqual({
 			calendarDay: 'thursday',
 			calendarEnd: new Temporal.PlainDateTime(2025, 11, 13, 15),
 			calendarStart: new Temporal.PlainDateTime(2025, 11, 13, 13, 45),

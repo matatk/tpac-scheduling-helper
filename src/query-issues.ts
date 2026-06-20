@@ -14,7 +14,7 @@ interface GhAssignee {
 	databaseId: number
 }
 
-export default function getIssues(gh: string, repo: string, label: string): GhIssue[] {
+export default function queryIssues(gh: string, repo: string, label: string): GhIssue[] {
 	const args = [ '--repo', repo, 'issue', 'list', '--label', label, '--json', 'assignees,body,title,url', '--limit', '999' ]
 	console.log(gh, args.join(' '))
 	const child = spawnSync(gh, args)
