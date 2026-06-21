@@ -31,6 +31,24 @@ interface CalendarMeetingNonexistent {
 
 const icsEvents: Record<string, IcsEvent> = {}
 
+export function isCalendarMeeting(cm: object): cm is CalendarMeeting {
+	const fields = [
+		'calendarDay',
+		'calendarEnd',
+		'calendarStart',
+		'calendarTitle',
+		'calendarUrl',
+		'kind',
+		'room',
+		'status',
+	]
+	for (const field of fields) {
+		if (!(field in cm)) return false
+	}
+	if (Object.keys(cm).length === fields.length) return true
+	return false
+}
+
 export function calendarInit(calendarUrl: string, localFile: string) {
 	const calendar = convertIcsCalendar(undefined, getSchedule(calendarUrl, localFile))
 	// TODO: can do this with reduce and build the thing in this scope, as with the 'iterator' below?

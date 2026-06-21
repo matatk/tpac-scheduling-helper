@@ -291,7 +291,6 @@ function generateMeetingList(args: ArgumentsCamelCase<GlobalArgs>) {
 		}, {})
 
 	const allMeetings = calendarMeetingsZipped(plannedMeetings)
-	console.log(allMeetings.length, 'events (including calendar events, and planned meeting attendances)')
 
 	const html = makeMeetingListPage({
 		allMeetings,

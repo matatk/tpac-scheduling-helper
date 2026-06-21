@@ -2,6 +2,7 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
+import { isCalendarMeeting } from './calendar.ts'
 import { isMeeting } from './meeting.ts'
 import { repoFromIssueUrl } from './repo.ts'
 import sort from './sort.ts'
@@ -10,6 +11,18 @@ import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps,
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
 import type { CalendarMeeting } from './calendar.ts'
+
+type MeetingCardArgs =
+	| { kind: 'calendar', meeting: CalendarMeeting,
+			headingLevel: number, repos: string[] }
+	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
+		  headingLevel: number, combined?: CombinedNames } // FIXME: only skipping combined names for full planning list generation - does that make sense?
+
+type MeetingCardHeaderArgs =
+	| { kind: 'calendar', meeting: CalendarMeeting,
+		  headingLevel: number, seq?: number }
+	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
+		  headingLevel: number }
 
 interface BaseOutputInfo {
 	myName: string
@@ -99,7 +112,12 @@ export function makeMeetingListPage({
 
 	let htmlMiddle = ''
 	for (const meeting of allMeetings) {
-		htmlMiddle += meetingCard(1, meeting, repos)
+		// FIXME: Can we get rid of both isCalendarMeeting() and the 'kind' parameter?
+		if (isCalendarMeeting(meeting)) {
+			htmlMiddle += meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos })
+		} else {
+			htmlMiddle += meetingCard({ kind: 'meeting', meeting, headingLevel: 1 })
+		}
 	}
 
 	return htmlStart + htmlMiddle + htmlEnd
@@ -306,7 +324,12 @@ function meetingCards(
 	equivalents: CombinedNames,
 ): string {
 	return '<div class="meeting-container">' +
-		meetings.map(meeting => meetingCard(meetingsLevel, meeting, equivalents)).join('\n') +
+		meetings.map(meeting => meetingCard({
+			kind: 'meeting',
+			meeting,
+			headingLevel: meetingsLevel,
+			combined: equivalents,
+		})).join('\n') +
 		'</div>'
 }
 
@@ -415,38 +438,17 @@ function htmlEscapeThatNeedsImproving(text?: string): string {
 	return text ? text.replace('<', '&lt;').replace('>', '&gt;') : '???'
 }
 
-function meetingCardHeader(
-	headingLevel: number,
-	meeting: CalendarMeeting,
-): string
-function meetingCardHeader(
-	headingLevel: number,
-	meeting: CalendarMeeting,
-	seq: number,
-): string
-function meetingCardHeader(
-	headingLevel: number,
-	meeting: Partial<Meeting>,
-	valid: false,
-): string
-function meetingCardHeader(
-	headingLevel: number,
-	meeting: Meeting,
-	valid: true,
-): string
-function meetingCardHeader(
-	headingLevel: number,
-	meeting: CalendarMeeting | Partial<Meeting>,
-	validOrSeq: boolean | number | undefined,
-): string {
+function meetingCardHeader<T extends MeetingCardHeaderArgs>(args: T): string {
 	const nature: Nature[] = []
 	const klasslist: string[] = []
 
-	const valid = typeof validOrSeq === 'boolean' ? validOrSeq : undefined
-
-	if ('match' in meeting && meeting.match) nature.push(meeting.match)
-	if (meeting.status) nature.push(meeting.status)
-	if (valid === false) nature.push('invalid')
+	if (args.kind !== 'calendar') {
+		if (args.meeting.match) nature.push(args.meeting.match)
+		if (!isMeeting(args.meeting)) {
+			nature.push('invalid')
+		}
+	}
+	if (args.meeting.status) nature.push(args.meeting.status)
 
 	for (const state of nature) {
 		switch (state) {
@@ -460,85 +462,66 @@ function meetingCardHeader(
 	}
 
 	const klasses = klasslist.length > 0 ? ' ' + klasslist.join(' ') : ''
-	const fullHeadingId = typeof validOrSeq === 'number' ? ` id="${idFor(validOrSeq, 'heading')}"` : ''
-	// TODO: do this a different way? somehow DRY with the full card function?
-	const isFullMeeting = isMeeting(meeting)
-	const tag = isFullMeeting ? ` id="${String(meeting.tag)}"` : ''
-	const vitals = isFullMeeting ? `<p><i>${htmlEscapeThatNeedsImproving(meeting.title)}</i> <span>from: ${meeting.issueUrl ? repoFromIssueUrl(meeting.issueUrl) : '???'}</span></p>` : ''
+
+	const fullHeadingId = args.kind === 'calendar' && args.seq ? ` id="${idFor(args.seq, 'heading')}"` : ''
+	const tag = args.kind !== 'calendar' && args.meeting.id ? ` id="${String(args.meeting.tag)}"` : ''
+	const vitals = args.kind !== 'calendar' ? `<p><i>${htmlEscapeThatNeedsImproving(args.meeting.title)}</i> <span>from: ${args.meeting.issueUrl ? repoFromIssueUrl(args.meeting.issueUrl) ?? '???' : '???'}</span></p>` : ''
 
 	return `<div${tag} class="meeting${klasses}">
 		<hgroup>
-			<h${String(headingLevel)}${fullHeadingId}>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h${String(headingLevel)}>
+			<h${String(args.headingLevel)}${fullHeadingId}>${htmlEscapeThatNeedsImproving(args.meeting.calendarTitle)}</h${String(args.headingLevel)}>
 			${vitals}
 		</hgroup>
 		<dl>
-			<dt>Kind</dt><dd>${meeting.kind ? kindPretty[meeting.kind] : '???'}</dd>
-			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
+			<dt>Kind</dt><dd>${args.meeting.kind ? kindPretty[args.meeting.kind] : '???'}</dd>
+			<dt>Status</dt><dd>${args.meeting.status ? statusPretty[args.meeting.status] : '???'}</dd>`
 }
 
-// FIXME: Invalid existing issues on list of meetings page are being rendered w/o their GitHub issue title.
-function meetingCard(
-	headingLevel: number,
-	meeting: CalendarMeeting | Partial<Meeting>,
-	repos: string[],
-): string
-function meetingCard(
-	headingLevel: number,
-	meeting: Meeting | Partial<Meeting>,
-	combined: CombinedNames,
-): string
-function meetingCard(
-	headingLevel: number,
-	meeting: CalendarMeeting | Meeting | Partial<Meeting>,
-	combinedOrRepos: CombinedNames | string[],
-): string {
-	const isFullMeeting = isMeeting(meeting)
-	const matchInMeeting = 'match' in meeting
+function meetingCard<T extends MeetingCardArgs>(args: T): string {
 	let out = ''
 	let tail = ''
 
-	const combined = Array.isArray(combinedOrRepos) ? null : combinedOrRepos
-
-	if (isFullMeeting) {
-		out += meetingCardHeader(headingLevel, meeting, true)
-	}	else if ('title' in meeting) {
-		out += meetingCardHeader(headingLevel, meeting, false)
-	} else {
-		// FIXME: use type guard and that will remove the need for all the casts
+	if (args.kind === 'calendar') {
+		const { meeting, headingLevel, repos } = args
 		if (meeting.status !== 'cancelled') {
 			const seq = headingCounter++
-			out += meetingCardHeader(headingLevel, meeting as CalendarMeeting, seq)
-			tail = newIssueForm(combinedOrRepos as string[], seq)
+			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel, seq })
+			tail = newIssueForm(repos, seq)
 		} else {
-			out += meetingCardHeader(headingLevel, meeting as CalendarMeeting)
+			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel })
 		}
+	} else {
+		const { meeting, headingLevel } = args
+		out += meetingCardHeader({ kind: 'meeting', meeting, headingLevel })
 	}
 
 	// FIXME: Don't include day - or include it with date - if outside of TPAC week
-	if (matchInMeeting && meeting.match === 'mismatch' && meeting.day !== meeting.calendarDay) {
-		out += `<dt>Calendar day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
-		out += `<dt>Our day</dt><dd>${pretty(meeting.day)}</dd>`
+	if (args.kind !== 'calendar' && args.meeting.match === 'mismatch' && args.meeting.day !== args.meeting.calendarDay) {
+		out += `<dt>Calendar day</dt><dd>${pretty(args.meeting.calendarDay)}</dd>`
+		out += `<dt>Our day</dt><dd>${pretty(args.meeting.day)}</dd>`
 	} else {
-		out += `<dt>Day</dt><dd>${pretty(meeting.calendarDay)}</dd>`
+		out += `<dt>Day</dt><dd>${pretty(args.meeting.calendarDay)}</dd>`
 	}
 
-	if (matchInMeeting && meeting.match !== 'exact') {
-		out += `<dt>Calendar time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
-		out += `<dt>Our time</dt><dd>${dtf(meeting.start)}&ndash;${dtf(meeting.end)}</dd>`
+	if (args.kind !== 'calendar' && args.meeting.match !== 'exact') {
+		out += `<dt>Calendar time</dt><dd>${dtf(args.meeting.calendarStart)}&ndash;${dtf(args.meeting.calendarEnd)}</dd>`
+		out += `<dt>Our time</dt><dd>${dtf(args.meeting.start)}&ndash;${dtf(args.meeting.end)}</dd>`
 	} else {
-		out += `<dt>Time</dt><dd>${dtf(meeting.calendarStart)}&ndash;${dtf(meeting.calendarEnd)}</dd>`
+		out += `<dt>Time</dt><dd>${dtf(args.meeting.calendarStart)}&ndash;${dtf(args.meeting.calendarEnd)}</dd>`
 	}
 
-	out += `<dt>Room</dt><dd>${meeting.room ?? '???'}</dd>`
-	if (combined && 'names' in meeting) out += `<dt>People</dt><dd>${meeting.names ? people(meeting.names, combined) : '???'}</dd>`
-	out += `<dt>Calendar URL</dt><dd><a href="${meeting.calendarUrl ?? '???'}">${meeting.calendarUrl ?? '???'}</a></dd>`
-	if ('issueUrl' in meeting) out += `<dt>Our issue URL</dt><dd><a href="${meeting.issueUrl ?? '???'}">${meeting.issueUrl ?? '???'}</a></dd>`
+	out += `<dt>Room</dt><dd>${args.meeting.room ?? '???'}</dd>`
+	if (args.kind === 'meeting' && args.combined && args.meeting.names) out += `<dt>People</dt><dd>${args.meeting.names ? people(args.meeting.names, args.combined) : '???'}</dd>`
+	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? '???'}">${args.meeting.calendarUrl ?? '???'}</a></dd>`
+	if ('issueUrl' in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? '???'}">${args.meeting.issueUrl ?? '???'}</a></dd>`
 
-	if (matchInMeeting && meeting.match) out += `<dt>Time match</dt><dd>${matchPretty[meeting.match]}</dd>`
-	if (isFullMeeting) out += `<dt>Alternatives</dt><dd>${prettyAlts(meeting)}</dd>`
+	if (args.kind !== 'calendar' && args.meeting.match) out += `<dt>Time match</dt><dd>${matchPretty[args.meeting.match]}</dd>`
+	if (args.kind !== 'calendar' && (args.meeting.alternatives?.length ?? 0) > 0) {
+		out += `<dt>Alternatives</dt><dd>${prettyAlts(args.meeting as Meeting)}</dd>`
+	}
 	out += '</dl>'
 
-	out += notes(meeting)
+	if (args.kind !== 'calendar') out += notes(args.meeting)
 
 	return out + tail + '</div>'
 }
