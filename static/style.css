@@ -43,6 +43,7 @@ nav>ul {
 }
 
 button,
+input,
 select {
 	font-size: inherit;
 }

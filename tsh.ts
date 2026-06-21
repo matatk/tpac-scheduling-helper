@@ -23,7 +23,8 @@ import type { TpacYear } from './src/tpacs.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
-const STYLE_FILE = path.join(import.meta.dirname, 'style.css')
+const STYLE_FILE = path.join(import.meta.dirname, 'static', 'style.css')
+const SCRIPT_FILE = path.join(import.meta.dirname, 'static', 'create-issue.js')
 
 const globalOptions = {
 	// FIXME: rename to calendar, and rename combine to merge/equiv.?
@@ -112,10 +113,11 @@ function main() {
 		.options(globalOptions)
 		.coerce('repo', repo => {
 			if (Array.isArray(repo)
-			&& repo.length <= 2  // NOTE: Won't work if user puts two repos after one switch.
-			&& repo.every(value => typeof value === 'string')) {
+				&& repo.length <= 2  // NOTE: Won't work if user puts two repos after one switch.
+				&& repo.every(value => typeof value === 'string')) {
 				return [ repo ]
 			}
+			return repo as RepoSpec[]
 		})
 		.check(args => {
 			if (!args.repo) return true
@@ -141,6 +143,7 @@ function main() {
 						&& combine.every(value => typeof value === 'string')) {
 						return [ combine ]
 					}
+					return combine as [string, string][]
 				})
 				.check(args => {
 					if (args['repo'] === undefined && args['query-result'] === undefined) {
@@ -291,10 +294,12 @@ function generateMeetingList(args: ArgumentsCamelCase<GlobalArgs>) {
 	console.log(allMeetings.length, 'events (including calendar events, and planned meeting attendances)')
 
 	const html = makeMeetingListPage({
-		style: STYLE_FILE,
+		allMeetings,
 		myName: MY_NAME,
 		myUrl: MY_URL,
-		allMeetings,
+		repos: args.repo?.map(repoLabel => repoLabel[0]).reverse() ?? [],
+		script: SCRIPT_FILE,
+		style: STYLE_FILE,
 	})
 	fs.writeFileSync(args.output, html)
 	console.log('Written', args.output + '.')

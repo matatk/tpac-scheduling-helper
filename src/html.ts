@@ -20,6 +20,8 @@ interface BaseOutputInfo {
 // TODO: get DayMeetings into this?
 interface MeetingListPageOutputInfo extends BaseOutputInfo {
 	allMeetings: (CalendarMeeting | Partial<Meeting>)[]
+	repos: string[]
+	script: string
 }
 
 interface SchedulingPageOutputInfo extends BaseOutputInfo {
@@ -62,11 +64,15 @@ const statusPretty: Record<Status, string> = {
 
 const UNKNOWN_PROPERTY = '???'
 
+let headingCounter = 0
+
 export function makeMeetingListPage({
+	allMeetings,
 	myName,
 	myUrl,
+	repos,
+	script,
 	style,
-	allMeetings,
 }: MeetingListPageOutputInfo): string {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
@@ -79,7 +85,7 @@ export function makeMeetingListPage({
 			<header>
 				<h1>${myName}: Full Meeting List</h1>
 			</header>
-			<nav>nope</nav>
+			<nav>FIXME: Put something here, or change the styles...</nav>
 			<main>
 				<div class="meeting-container">`
 
@@ -88,11 +94,12 @@ export function makeMeetingListPage({
 		<footer>
 			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
 		</footer>
+		<script>${fs.readFileSync(script, 'utf-8')}</script>
 		</body></html>`
 
 	let htmlMiddle = ''
 	for (const meeting of allMeetings) {
-		htmlMiddle += meetingCard(1, meeting)
+		htmlMiddle += meetingCard(1, meeting, repos)
 	}
 
 	return htmlStart + htmlMiddle + htmlEnd
@@ -410,7 +417,12 @@ function htmlEscapeThatNeedsImproving(text?: string): string {
 
 function meetingCardHeader(
 	headingLevel: number,
-	meeting: CalendarMeeting
+	meeting: CalendarMeeting,
+): string
+function meetingCardHeader(
+	headingLevel: number,
+	meeting: CalendarMeeting,
+	seq: number,
 ): string
 function meetingCardHeader(
 	headingLevel: number,
@@ -425,10 +437,12 @@ function meetingCardHeader(
 function meetingCardHeader(
 	headingLevel: number,
 	meeting: CalendarMeeting | Partial<Meeting>,
-	valid?: boolean,
+	validOrSeq: boolean | number | undefined,
 ): string {
 	const nature: Nature[] = []
 	const klasslist: string[] = []
+
+	const valid = typeof validOrSeq === 'boolean' ? validOrSeq : undefined
 
 	if ('match' in meeting && meeting.match) nature.push(meeting.match)
 	if (meeting.status) nature.push(meeting.status)
@@ -445,10 +459,8 @@ function meetingCardHeader(
 		}
 	}
 
-	const klasses = klasslist.length > 0
-		? ' ' + klasslist.join(' ')
-		: ''
-
+	const klasses = klasslist.length > 0 ? ' ' + klasslist.join(' ') : ''
+	const fullHeadingId = typeof validOrSeq === 'number' ? ` id="${idFor(validOrSeq, 'heading')}"` : ''
 	// TODO: do this a different way? somehow DRY with the full card function?
 	const isFullMeeting = isMeeting(meeting)
 	const tag = isFullMeeting ? ` id="${String(meeting.tag)}"` : ''
@@ -456,7 +468,7 @@ function meetingCardHeader(
 
 	return `<div${tag} class="meeting${klasses}">
 		<hgroup>
-			<h${String(headingLevel)}>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h${String(headingLevel)}>
+			<h${String(headingLevel)}${fullHeadingId}>${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</h${String(headingLevel)}>
 			${vitals}
 		</hgroup>
 		<dl>
@@ -464,9 +476,11 @@ function meetingCardHeader(
 			<dt>Status</dt><dd>${meeting.status ? statusPretty[meeting.status] : '???'}</dd>`
 }
 
+// FIXME: Invalid existing issues on list of meetings page are being rendered w/o their GitHub issue title.
 function meetingCard(
 	headingLevel: number,
-	meeting: CalendarMeeting,
+	meeting: CalendarMeeting | Partial<Meeting>,
+	repos: string[],
 ): string
 function meetingCard(
 	headingLevel: number,
@@ -476,20 +490,28 @@ function meetingCard(
 function meetingCard(
 	headingLevel: number,
 	meeting: CalendarMeeting | Meeting | Partial<Meeting>,
-	combined?: CombinedNames,
+	combinedOrRepos: CombinedNames | string[],
 ): string {
 	const isFullMeeting = isMeeting(meeting)
 	const matchInMeeting = 'match' in meeting
 	let out = ''
 	let tail = ''
 
+	const combined = Array.isArray(combinedOrRepos) ? null : combinedOrRepos
+
 	if (isFullMeeting) {
 		out += meetingCardHeader(headingLevel, meeting, true)
 	}	else if ('title' in meeting) {
 		out += meetingCardHeader(headingLevel, meeting, false)
 	} else {
-		out += meetingCardHeader(headingLevel, meeting as CalendarMeeting)
-		tail = calendarMeetingCardButton(meeting as CalendarMeeting)
+		// FIXME: use type guard and that will remove the need for all the casts
+		if (meeting.status !== 'cancelled') {
+			const seq = headingCounter++
+			out += meetingCardHeader(headingLevel, meeting as CalendarMeeting, seq)
+			tail = newIssueForm(combinedOrRepos as string[], seq)
+		} else {
+			out += meetingCardHeader(headingLevel, meeting as CalendarMeeting)
+		}
 	}
 
 	// FIXME: Don't include day - or include it with date - if outside of TPAC week
@@ -521,8 +543,23 @@ function meetingCard(
 	return out + tail + '</div>'
 }
 
-function calendarMeetingCardButton(meeting: CalendarMeeting) {
-	return `<div><button>Attend this event</button></div>`
+function newIssueForm(repos: string[], seq: number) {
+	const buttonId = idFor(seq, 'button')
+	const repoId = idFor(seq, 'repo')
+
+	const options = repos.reduce((out, repo) =>
+		out + `<option value="${repo}">${repo}</option>`
+	, '')
+
+	return `
+		<form>
+			<p>
+				<label id="${repoId}">Repo: <select>${options}</select></label>
+			</p>
+			<button id="${buttonId}"
+			  aria-labelledby="${buttonId} ${idFor(seq, 'heading')}"
+			  aria-describedby="${repoId}">Plan to attend</button>
+		</form>`
 }
 
 function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
@@ -608,4 +645,8 @@ function prettyAlts(m: Meeting): string {
 function alternativesOrNot(m: Meeting): string {
 	if (m.alternatives.length > 0) return `<p><strong>Possible alternative attendees:</strong> ${prettyAlts(m)}</p>`
 	return ''
+}
+
+function idFor(num: number, kind: 'heading' | 'button' | 'repo') {
+	return `${kind}-${String(num)}`
 }
