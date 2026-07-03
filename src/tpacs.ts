@@ -2,8 +2,8 @@ import { Temporal } from '@js-temporal/polyfill'
 
 import type { Day } from './day.ts'
 
-export const TpacYears = [ 2025 ] as const
-export type TpacYear = typeof TpacYears[number]
+export const tpacYears = [ 2025 ] as const
+export type TpacYear = typeof tpacYears[number]
 
 export type TpacDays = Record<Day, {
 	midnight: Temporal.PlainDateTime
@@ -11,10 +11,12 @@ export type TpacDays = Record<Day, {
 	end: Temporal.PlainDateTime
 }>
 
-type Tpacs = Record<TpacYear, {
+export interface Tpac {
 	icsUrl: string,
 	days: TpacDays
-}>
+}
+
+type Tpacs = Record<TpacYear, Tpac>
 
 const TPACs: Tpacs = {
 	2025: {

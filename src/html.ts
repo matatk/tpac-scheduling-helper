@@ -14,7 +14,7 @@ import type { CalendarMeeting } from './calendar.ts'
 
 type MeetingCardArgs =
 	| { kind: 'calendar', meeting: CalendarMeeting,
-			headingLevel: number, repos: string[] }
+			headingLevel: number, repoNames: string[] }
 	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
 		  headingLevel: number, equivalents: CombineNames }
 
@@ -34,7 +34,7 @@ interface BaseOutputInfo {
 // TODO: get DayMeetings into this?
 interface MeetingListPageOutputInfo extends BaseOutputInfo {
 	allMeetings: (CalendarMeeting | Partial<Meeting>)[]
-	repos: string[]
+	repoNames: string[]
 	script: string
 }
 
@@ -84,7 +84,7 @@ export function makeMeetingListPage({
 	equivalents,
 	myName,
 	myUrl,
-	repos,
+	repoNames,
 	script,
 	style,
 }: MeetingListPageOutputInfo): string {
@@ -115,7 +115,7 @@ export function makeMeetingListPage({
 	for (const meeting of allMeetings) {
 		// FIXME: Can we get rid of both isCalendarMeeting() and the 'kind' parameter?
 		if (isCalendarMeeting(meeting)) {
-			htmlMiddle += meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos })
+			htmlMiddle += meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repoNames })
 		} else {
 			htmlMiddle += meetingCard({ kind: 'meeting', meeting, headingLevel: 1, equivalents })
 		}
@@ -483,11 +483,11 @@ function meetingCard<T extends MeetingCardArgs>(args: T): string {
 	let tail = ''
 
 	if (args.kind === 'calendar') {
-		const { meeting, headingLevel, repos } = args
+		const { meeting, headingLevel, repoNames } = args
 		if (meeting.status !== 'cancelled') {
 			const seq = headingCounter++
 			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel, seq })
-			tail = newIssueForm(repos, seq)
+			tail = newIssueForm(repoNames, seq)
 		} else {
 			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel })
 		}

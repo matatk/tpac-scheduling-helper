@@ -7,7 +7,7 @@ import path from 'path'
 import { hideBin } from 'yargs/helpers'
 import yargs from 'yargs'
 
-import TPACs, { TpacYears } from './src/tpacs.ts'
+import TPACs, { tpacYears } from './src/tpacs.ts'
 import { calendarInit, calendarMeeting, calendarMeetingsZipped } from './src/calendar.ts'
 import { makeMeetingListPage, makeSchedulingPage } from './src/html.ts'
 import { categoriseMeetings } from './src/meeting.ts'
@@ -18,7 +18,7 @@ import queryIssues from './src/query-issues.ts'
 import type { CombineNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/query-issues.ts'
 import type { Meeting } from './src/meeting.ts'
-import type { TpacYear } from './src/tpacs.ts'
+import type { Tpac, TpacYear } from './src/tpacs.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
@@ -28,9 +28,28 @@ const SCRIPT_FILE = path.join(import.meta.dirname, 'static', 'create-issue.js')
 type RepoSpec = [string] | [string, string]
 type CombineNamesArgs = [string, string][]
 
+interface BaseArgs {
+	equivalents: CombineNames
+	issues: GhIssue[]
+	tpac: Tpac
+}
+
+interface GenerateMeetingListArgs extends BaseArgs {
+	repoNames: string[]
+}
+
+interface DoSchedulingArgs extends BaseArgs {
+	alternatives: string[]
+}
+
 function errorOut(...args: unknown[]) {
 	console.error(...args)
 	process.exit(42)
+}
+
+function write(fileName: string, html: string) {
+	fs.writeFileSync(fileName, html)
+	console.log('Written', fileName + '.')
 }
 
 function getIssues(gh: string, defaultLabel?: string, repo?: RepoSpec[], queryResult?: string) {
@@ -54,13 +73,24 @@ function getIssues(gh: string, defaultLabel?: string, repo?: RepoSpec[], queryRe
 	return issues
 }
 
-function generateMeetingList(args: ProgArgs) {
-	const tpac = TPACs[args.year]
-	const equivalents = makeEquivalents(args.combine)
-	calendarInit(tpac.icsUrl, args.calendar)
+function makeEquivalents(combine?: CombineNamesArgs): CombineNames {
+	const equivalents: CombineNames = new Map()
+	if (combine) {
+		for (const [ name, otherName ] of combine) {
+			equivalents.set(name, otherName)
+		}
+	}
+	return equivalents
+}
 
+function generateMeetingList({
+	equivalents,
+	issues,
+	repoNames,
+	tpac,
+}: GenerateMeetingListArgs): string {
 	// NOTE: This includes invalid ones
-	const plannedMeetings = getIssues(args.gh, args.label, args.repo, args.queryResult).reduce(
+	const plannedMeetings = issues.reduce(
 		(acc: Record<string, Partial<Meeting>[]>, issue) => {
 			const meeting = meetingFromIssue(tpac.days, calendarMeeting, issue)
 			if (meeting.id) {
@@ -80,31 +110,20 @@ function generateMeetingList(args: ProgArgs) {
 		equivalents,
 		myName: MY_NAME,
 		myUrl: MY_URL,
-		repos: args.repo?.map(repoLabel => repoLabel[0]!).reverse() ?? [],
+		repoNames,
 		script: SCRIPT_FILE,
 		style: STYLE_FILE,
 	})
-	fs.writeFileSync(args.outputPlan, html)
-	console.log('Written', args.outputPlan + '.')
+
+	return html
 }
 
-function makeEquivalents(combine?: CombineNamesArgs): CombineNames {
-	const equivalents: CombineNames = new Map()
-	if (combine) {
-		for (const [ name, otherName ] of combine) {
-			equivalents.set(name, otherName)
-		}
-	}
-	return equivalents
-}
-
-function doScheduling(args: ProgArgs) {
-	const tpac = TPACs[args.year]
-	const equivalents = makeEquivalents(args.combine)
-	calendarInit(tpac.icsUrl, args.calendar)
-
-	// FIXME: DRY with gen?
-	const issues = getIssues(args.gh, args.label, args.repo, args.queryResult)
+function doScheduling({
+	alternatives,
+	equivalents,
+	issues,
+	tpac,
+}: DoSchedulingArgs): string {
 	const allMeetings = issues.map((issue => meetingFromIssue(tpac.days, calendarMeeting, issue)))
 
 	const {
@@ -125,7 +144,7 @@ function doScheduling(args: ProgArgs) {
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-	} = processSchedule(tpac.days, equivalents, args.alternatives ?? [], validMeetings)
+	} = processSchedule(tpac.days, equivalents, alternatives, validMeetings)
 
 	const html = makeSchedulingPage({
 		invalidMeetings,
@@ -147,143 +166,170 @@ function doScheduling(args: ProgArgs) {
 		myUrl: MY_URL,
 	})
 
-	fs.writeFileSync(args.outputSchedule, html)
-	console.log('Written', args.outputSchedule + '.')
-	if (args.saveResult) {
-		fs.writeFileSync(args.saveResult, JSON.stringify(issues, null, 2))
-		console.log('Written', args.saveResult + '.')
+	return html
+}
+
+function getArgv() {
+	return yargs(hideBin(process.argv)).parserConfiguration({
+		'flatten-duplicate-arrays': false,
+	})
+		.options({
+			calendar: {
+				alias: 'c',
+				type: 'string',
+				description: "Path to the local meetings schedule ICS file. It will be downloaded from w3.org (according to the --year option's value) if it doesn't exist.\n",
+				required: true,
+			},
+			'output-plan': {
+				alias: 'p',
+				type: 'string',
+				description: 'Path to a local HTML file to create (or overwrite) with info on all TPAC meetings, so you can decide which to attend.\n',
+			},
+			'output-schedule': {
+				alias: 's',
+				type: 'string',
+				description: 'Path to a local HTML file to create (or overwrite) with info on your planned meetings, and possible clashes.\n',
+			},
+			year: {
+				alias: 'y',
+				choices: tpacYears,
+				description: 'Which TPAC year to use (defaults to the latest year).\n',
+				default: tpacYears.at(-1),
+			},
+			repo: {
+				alias: 'r',
+				type: 'string',
+				array: true,
+				description: 'GitHub repo(s) containing TPAC meeting-planning issues. By default, the same label will be applied to all repo searches. If you want to use different labels for some repos, you can specify the label to use after the repo shortname/URL.\n\n(Not required if you are using the --query-results debugging option.)\n',
+			},
+			label: {
+				alias: 'l',
+				type: 'string',
+				description: 'GitHub issue label to indicate TPAC meeting-planning issues. Can be overridden per repo, via the --repo option',
+			},
+			'query-result': {
+				alias: 'q',
+				type: 'string',
+				description: 'Path to local JSON file that contains issues returned in GitHub API query responses. Overrides --repo.\n',
+			},
+			'save-result': {
+				alias: 'S',
+				type: 'string',
+				description: 'Path to local JSON file to save all issues returned from all GitHub API query responses.\n',
+			},
+			gh: {
+				type: 'string',
+				description: 'Path to/name of gh binary.\n',
+				default: 'gh',
+			},
+			alternatives: {
+				alias: 'a',
+				type: 'string',
+				array: true,
+				description: 'People (rather, their GitHub login names) who you want to consider as possible alternatives to attend meetings in the event of clashes. By default, all people referenced by the found issues will be considered as possible alternative meeting attendees.\n\nYou might want to use this if you run the tool from the perspective of different groups, e.g. a WG, or those of your colleagues who are attending TPAC.\n',
+			},
+			combine: {
+				alias: 'C',
+				type: 'string',
+				array: true,
+				description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n',
+			},
+		})
+		.coerce('repo', repo => {
+			if (Array.isArray(repo)
+				&& repo.length <= 2  // NOTE: Won't work if user puts two repos after one switch.
+				&& repo.every(value => typeof value === 'string')) {
+				return [ repo ]
+			}
+			return repo as RepoSpec[]
+		})
+		.coerce('alternatives', Array.prototype.flat)
+		.coerce('combine', combine => {
+			if (Array.isArray(combine)
+				&& combine.length === 2
+				&& combine.every(value => typeof value === 'string')) {
+				return [ combine ]
+			}
+			return combine as [string, string][]
+		})
+		.check(args => {
+			for (const [ one, other ] of [ [ 'repo', 'query-result' ], [ 'output-plan', 'output-schedule' ] ]) {
+				if (args[one!] === undefined && args[other!] === undefined) {
+					throw new Error(`One of '--${one}' and '--${other}' must be supplied.`)
+				}
+			}
+			return true
+		})
+		.check(args => {
+			if (!args.repo) return true
+			if (!args.repo.every(value =>
+				Array.isArray(value) && (value.length === 1 || value.length === 2))) {
+				errorOut('Every \'repo\' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:', args.repo)
+			}
+			return true
+		})
+		.check(args => {
+			args.alternatives ??= []
+			return true
+		})
+		.check(args => {
+			if (!args.combine) return true
+			if (!args.combine.every(value => Array.isArray(value) && value.length === 2)) {
+				errorOut('Every \'equivalent\' option value must be a pair of two usernames to consider equal. The values specified were:', args.combine)
+			}
+			return true
+		})
+		.conflicts('query-result', 'save-result')
+		.example('--repo w3c/apa-tpac-meetings', 'Query the "w3c/apa-tpac-meetings" repo, use the default label, or that specified with the --label option.\n')
+		.example('--repo w3c/apa --repo w3c/aria', 'Query multiple repos.\n')
+		.example('--repo w3c/apa tpac-2025 --repo w3c/aria', 'Use a custom label for the "w3c/apa" repo.\n')
+		.example('--combine TopSecretAnna PublicAnna', 'Any instance of TopSecretAnna will be considered as PublicAnna.\n')
+		.group([ 'calendar', 'repo', 'output-plan', 'output-schedule' ], 'Vital info:')
+		.group([ 'label', 'gh', 'alternatives', 'combine' ], 'Issue/filtering options:')
+		.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
+		.group([ 'help', 'version' ], 'Workhorses:')
+		.strict()
+		.parseSync()
+}
+
+function main() {
+	const argv = getArgv()
+
+	type ProgArgs = typeof argv & {
+		alternatives?: string[]
+		combine?: CombineNamesArgs
+		outputPlan: string
+		outputSchedule: string
+		repo?: RepoSpec[]
+		year: TpacYear
+	}
+
+	const tpac = TPACs[(argv as ProgArgs).year]
+	const equivalents = makeEquivalents((argv as ProgArgs).combine)
+	const issues = getIssues(argv.gh, argv.label, (argv as ProgArgs).repo, argv.queryResult)
+	calendarInit(tpac.icsUrl, argv.calendar)
+
+	if (argv.outputPlan) {
+		write((argv as ProgArgs).outputPlan, generateMeetingList({
+			equivalents,
+			issues,
+			repoNames: (argv as ProgArgs).repo?.map(repoLabel => repoLabel[0]!).reverse() ?? [],
+			tpac,
+		}))
+	}
+
+	if (argv.outputSchedule) {
+		write((argv as ProgArgs).outputSchedule, doScheduling({
+			alternatives: (argv as ProgArgs).alternatives ?? [],
+			equivalents,
+			issues,
+			tpac,
+		}))
+	}
+
+	if (argv.saveResult) {
+		write(argv.saveResult, JSON.stringify(issues, null, 2))
 	}
 }
 
-const argv = yargs(hideBin(process.argv)).parserConfiguration({
-	'flatten-duplicate-arrays': false,
-})
-	.options({
-		calendar: {
-			alias: 'c',
-			type: 'string',
-			description: "Path to the local meetings schedule ICS file. It will be downloaded from w3.org (according to the --year option's value) if it doesn't exist.\n",
-			required: true,
-		},
-		'output-plan': {
-			alias: 'p',
-			type: 'string',
-			description: 'Path to a local HTML file to create (or overwrite) with info on all TPAC meetings, so you can decide which to attend.\n',
-		},
-		'output-schedule': {
-			alias: 's',
-			type: 'string',
-			description: 'Path to a local HTML file to create (or overwrite) with info on your planned meetings, and possible clashes.\n',
-		},
-		year: {
-			alias: 'y',
-			choices: TpacYears,
-			description: 'Which TPAC year to use (defaults to the latest year).\n',
-			default: TpacYears.at(-1),
-		},
-		repo: {
-			alias: 'r',
-			type: 'string',
-			array: true,
-			description: 'GitHub repo(s) containing TPAC meeting-planning issues. By default, the same label will be applied to all repo searches. If you want to use different labels for some repos, you can specify the label to use after the repo shortname/URL.\n\n(Not required if you are using the --query-results debugging option.)\n',
-		},
-		label: {
-			alias: 'l',
-			type: 'string',
-			description: 'GitHub issue label to indicate TPAC meeting-planning issues. Can be overridden per repo, via the --repo option',
-		},
-		'query-result': {
-			alias: 'q',
-			type: 'string',
-			description: 'Path to local JSON file that contains issues returned in GitHub API query responses. Overrides --repo.\n',
-		},
-		'save-result': {
-			alias: 'S',
-			type: 'string',
-			description: 'Path to local JSON file to save all issues returned from all GitHub API query responses.\n',
-		},
-		gh: {
-			type: 'string',
-			description: 'Path to/name of gh binary.\n',
-			default: 'gh',
-		},
-		alternatives: {
-			alias: 'a',
-			type: 'string',
-			array: true,
-			description: 'People (rather, their GitHub login names) who you want to consider as possible alternatives to attend meetings in the event of clashes. By default, all people referenced by the found issues will be considered as possible alternative meeting attendees.\n\nYou might want to use this if you run the tool from the perspective of different groups, e.g. a WG, or those of your colleagues who are attending TPAC.\n',
-		},
-		combine: {
-			alias: 'C',
-			type: 'string',
-			array: true,
-			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n',
-		},
-	})
-	.coerce('repo', repo => {
-		if (Array.isArray(repo)
-			&& repo.length <= 2  // NOTE: Won't work if user puts two repos after one switch.
-			&& repo.every(value => typeof value === 'string')) {
-			return [ repo ]
-		}
-		return repo as RepoSpec[]
-	})
-	.coerce('alternatives', Array.prototype.flat)
-	.coerce('combine', combine => {
-		if (Array.isArray(combine)
-			&& combine.length === 2
-			&& combine.every(value => typeof value === 'string')) {
-			return [ combine ]
-		}
-		return combine as [string, string][]
-	})
-	.check(args => {
-		for (const [ one, other ] of [ [ 'repo', 'query-result' ], [ 'output-plan', 'output-schedule' ] ]) {
-			if (args[one!] === undefined && args[other!] === undefined) {
-				throw new Error(`One of '--${one}' and '--${other}' must be supplied.`)
-			}
-		}
-		return true
-	})
-	.check(args => {
-		if (!args.repo) return true
-		if (!args.repo.every(value =>
-			Array.isArray(value) && (value.length === 1 || value.length === 2))) {
-			errorOut('Every \'repo\' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:', args.repo)
-		}
-		return true
-	})
-	.check(args => {
-		args.alternatives ??= []
-		return true
-	})
-	.check(args => {
-		if (!args.combine) return true
-		if (!args.combine.every(value => Array.isArray(value) && value.length === 2)) {
-			errorOut('Every \'equivalent\' option value must be a pair of two usernames to consider equal. The values specified were:', args.combine)
-		}
-		return true
-	})
-	.conflicts('query-result', 'save-result')
-	.example('--repo w3c/apa-tpac-meetings', 'Query the "w3c/apa-tpac-meetings" repo, use the default label, or that specified with the --label option.\n')
-	.example('--repo w3c/apa --repo w3c/aria', 'Query multiple repos.\n')
-	.example('--repo w3c/apa tpac-2025 --repo w3c/aria', 'Use a custom label for the "w3c/apa" repo.\n')
-	.example('--combine TopSecretAnna PublicAnna', 'Any instance of TopSecretAnna will be considered as PublicAnna.\n')
-	.group([ 'calendar', 'repo', 'output-plan', 'output-schedule' ], 'Vital info:')
-	.group([ 'label', 'gh', 'alternatives', 'combine' ], 'Issue/filtering options:')
-	.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
-	.group([ 'help', 'version' ], 'Workhorses:')
-	.strict()
-	.parseSync()
-
-type ProgArgs = typeof argv & {
-	alternatives?: string[]
-	combine?: CombineNamesArgs
-	outputPlan: string
-	outputSchedule: string
-	repo?: RepoSpec[]
-	year: TpacYear
-}
-
-if (argv['output-plan']) generateMeetingList(argv as ProgArgs)
-if (argv['output-schedule']) doScheduling(argv as ProgArgs)
+main()
