@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // FIXME: Now that we're using Temporal.PlainDateTime for the meeting times, detection of moved meetings should be a lot simpler. Probably good to still keep the day around becuase it helps UX having the day name.
+// FIXME: include an option to ignore closed issues? Or do so by default and include one to look at closed issues?
 import fs from 'fs'
 import path from 'path'
 
@@ -32,7 +33,7 @@ function errorOut(...args: unknown[]) {
 	process.exit(42)
 }
 
-function getIssues(gh: string, defaultLabel: string, repo?: RepoSpec[], queryResult?: string) {
+function getIssues(gh: string, defaultLabel?: string, repo?: RepoSpec[], queryResult?: string) {
 	const issues: GhIssue[] = []
 
 	if (queryResult) {
@@ -56,7 +57,7 @@ function getIssues(gh: string, defaultLabel: string, repo?: RepoSpec[], queryRes
 function generateMeetingList(args: ProgArgs) {
 	const tpac = TPACs[args.year]
 	const equivalents = makeEquivalents(args.combine)
-	calendarInit(tpac.icsUrl, args.meetings)
+	calendarInit(tpac.icsUrl, args.calendar)
 
 	// NOTE: This includes invalid ones
 	const plannedMeetings = getIssues(args.gh, args.label, args.repo, args.queryResult).reduce(
@@ -100,7 +101,7 @@ function makeEquivalents(combine?: CombineNamesArgs): CombineNames {
 function doScheduling(args: ProgArgs) {
 	const tpac = TPACs[args.year]
 	const equivalents = makeEquivalents(args.combine)
-	calendarInit(tpac.icsUrl, args.meetings)
+	calendarInit(tpac.icsUrl, args.calendar)
 
 	// FIXME: DRY with gen?
 	const issues = getIssues(args.gh, args.label, args.repo, args.queryResult)
@@ -158,9 +159,8 @@ const argv = yargs(hideBin(process.argv)).parserConfiguration({
 	'flatten-duplicate-arrays': false,
 })
 	.options({
-		// FIXME: rename to calendar, and rename combine to merge/equiv.?
-		meetings: {
-			alias: 'm',
+		calendar: {
+			alias: 'c',
 			type: 'string',
 			description: "Path to the local meetings schedule ICS file. It will be downloaded from w3.org (according to the --year option's value) if it doesn't exist.\n",
 			required: true,
@@ -190,8 +190,7 @@ const argv = yargs(hideBin(process.argv)).parserConfiguration({
 		label: {
 			alias: 'l',
 			type: 'string',
-			description: 'GitHub issue label to indicate TPAC meeting-planning issues. Can be overridden per repo, via the --repon',
-			default: 'tpac',
+			description: 'GitHub issue label to indicate TPAC meeting-planning issues. Can be overridden per repo, via the --repo option',
 		},
 		'query-result': {
 			alias: 'q',
@@ -215,7 +214,7 @@ const argv = yargs(hideBin(process.argv)).parserConfiguration({
 			description: 'People (rather, their GitHub login names) who you want to consider as possible alternatives to attend meetings in the event of clashes. By default, all people referenced by the found issues will be considered as possible alternative meeting attendees.\n\nYou might want to use this if you run the tool from the perspective of different groups, e.g. a WG, or those of your colleagues who are attending TPAC.\n',
 		},
 		combine: {
-			alias: 'c',
+			alias: 'C',
 			type: 'string',
 			array: true,
 			description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n',
@@ -270,7 +269,7 @@ const argv = yargs(hideBin(process.argv)).parserConfiguration({
 	.example('--repo w3c/apa --repo w3c/aria', 'Query multiple repos.\n')
 	.example('--repo w3c/apa tpac-2025 --repo w3c/aria', 'Use a custom label for the "w3c/apa" repo.\n')
 	.example('--combine TopSecretAnna PublicAnna', 'Any instance of TopSecretAnna will be considered as PublicAnna.\n')
-	.group([ 'meetings', 'repo', 'output-plan', 'output-schedule' ], 'Vital info:')
+	.group([ 'calendar', 'repo', 'output-plan', 'output-schedule' ], 'Vital info:')
 	.group([ 'label', 'gh', 'alternatives', 'combine' ], 'Issue/filtering options:')
 	.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
 	.group([ 'help', 'version' ], 'Workhorses:')
