@@ -7,7 +7,7 @@ import { isMeeting } from './meeting.ts'
 import { repoFromIssueUrl } from './repo.ts'
 import sort from './sort.ts'
 
-import type { CombinedNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
+import type { CombineNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
 import type { CalendarMeeting } from './calendar.ts'
@@ -16,15 +16,16 @@ type MeetingCardArgs =
 	| { kind: 'calendar', meeting: CalendarMeeting,
 			headingLevel: number, repos: string[] }
 	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
-		  headingLevel: number, combined?: CombinedNames } // FIXME: only skipping combined names for full planning list generation - does that make sense?
+		  headingLevel: number, equivalents: CombineNames }
 
 type MeetingCardHeaderArgs =
 	| { kind: 'calendar', meeting: CalendarMeeting,
-		  headingLevel: number, seq?: number }
+		  headingLevel: number, seq?: number } // TODO: when is seq not used? cancelled meetings?
 	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
 		  headingLevel: number }
 
 interface BaseOutputInfo {
+	equivalents: CombineNames
 	myName: string
 	myUrl: string
 	style: string
@@ -40,7 +41,6 @@ interface MeetingListPageOutputInfo extends BaseOutputInfo {
 interface SchedulingPageOutputInfo extends BaseOutputInfo {
 	cancelledMeetings: Partial<Meeting>[]
 	dayMeetings: DayMeetings
-	equivalents: CombinedNames
 	haveDefinitelyClashing: boolean  // TODO: remove need for
 	haveNearlyClashing: boolean      // TODO: remove need for
 	invalidMeetings: Partial<Meeting>[]
@@ -81,6 +81,7 @@ let headingCounter = 0
 
 export function makeMeetingListPage({
 	allMeetings,
+	equivalents,
 	myName,
 	myUrl,
 	repos,
@@ -116,7 +117,7 @@ export function makeMeetingListPage({
 		if (isCalendarMeeting(meeting)) {
 			htmlMiddle += meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos })
 		} else {
-			htmlMiddle += meetingCard({ kind: 'meeting', meeting, headingLevel: 1 })
+			htmlMiddle += meetingCard({ kind: 'meeting', meeting, headingLevel: 1, equivalents })
 		}
 	}
 
@@ -289,7 +290,7 @@ function sectionWithoutLandmark(
 	</section>`
 }
 
-function dayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): string {
+function dayMeetingLinks(dms: DayMeetings, equivalents: CombineNames): string {
 	let html = '<ul>'
 	for (const [ day, meetings ] of dms) {
 		html += `<li>${pretty(day)}<ul>`
@@ -306,7 +307,7 @@ function dayMeetingLinks(dms: DayMeetings, equivalents: CombinedNames): string {
 	return html
 }
 
-function dayMeetingCards(dms: DayMeetings, equivalents: CombinedNames): string {
+function dayMeetingCards(dms: DayMeetings, equivalents: CombineNames): string {
 	let html = ''
 
 	for (const day of dms.keys()) {
@@ -321,14 +322,14 @@ function dayMeetingCards(dms: DayMeetings, equivalents: CombinedNames): string {
 function meetingCards(
 	meetingsLevel: number,
 	meetings: Meeting[] | Partial<Meeting>[],
-	equivalents: CombinedNames,
+	equivalents: CombineNames,
 ): string {
 	return '<div class="meeting-container">' +
 		meetings.map(meeting => meetingCard({
 			kind: 'meeting',
 			meeting,
 			headingLevel: meetingsLevel,
-			combined: equivalents,
+			equivalents,
 		})).join('\n') +
 		'</div>'
 }
@@ -365,7 +366,7 @@ function sectionLink(flag: boolean, idref: string, pretty: string) {
 		: `${pretty} (none)`
 }
 
-function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: CombinedNames) {
+function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: CombineNames) {
 	const tTop = `<table>
 		<thead>
 			<tr>
@@ -410,11 +411,11 @@ function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: Combine
 	return html
 }
 
-function listItem(meeting: Meeting, includeDay: boolean, combined: CombinedNames, skipName?: string): string {
+function listItem(meeting: Meeting, includeDay: boolean, combined: CombineNames, skipName?: string): string {
 	return `<li><p>${inlineSummary(meeting, includeDay, combined, skipName)}</p></li>`
 }
 
-function inlineSummary(meeting: Meeting, includeDay: boolean, combned: CombinedNames, skipName?: string): string {
+function inlineSummary(meeting: Meeting, includeDay: boolean, combned: CombineNames, skipName?: string): string {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
 	const names = skipName
 		? meeting.names.filter(name => name !== skipName)
@@ -511,7 +512,7 @@ function meetingCard<T extends MeetingCardArgs>(args: T): string {
 	}
 
 	out += `<dt>Room</dt><dd>${args.meeting.room ?? '???'}</dd>`
-	if (args.kind === 'meeting' && args.combined && args.meeting.names) out += `<dt>People</dt><dd>${args.meeting.names ? people(args.meeting.names, args.combined) : '???'}</dd>`
+	if (args.kind === 'meeting' && args.equivalents && args.meeting.names) out += `<dt>People</dt><dd>${args.meeting.names ? people(args.meeting.names, args.equivalents) : '???'}</dd>`
 	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? '???'}">${args.meeting.calendarUrl ?? '???'}</a></dd>`
 	if ('issueUrl' in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? '???'}">${args.meeting.issueUrl ?? '???'}</a></dd>`
 
@@ -545,7 +546,7 @@ function newIssueForm(repos: string[], seq: number) {
 		</form>`
 }
 
-function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombinedNames): string {
+function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombineNames): string {
 	let html = ''
 	for (const [ name, cms ] of pcm) {
 		if (cms.size) {
@@ -564,7 +565,7 @@ function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: C
 	return html
 }
 
-function possibleDuplicates(rdm: RepoDuplicateMeetings, combined: CombinedNames): string {
+function possibleDuplicates(rdm: RepoDuplicateMeetings, combined: CombineNames): string {
 	let html = ''
 	for (const [ repo, possibleDupes ] of rdm) {
 		html += `<h4>Possibly duplicate meetings in ${repo}</h4>`
@@ -580,7 +581,7 @@ function possibleDuplicates(rdm: RepoDuplicateMeetings, combined: CombinedNames)
 	return html
 }
 
-function unassignedList(unassigned: Meeting[], combined: CombinedNames): string {
+function unassignedList(unassigned: Meeting[], combined: CombineNames): string {
 	let html = ''
 	html += '<ul>'
 	for (const meeting of unassigned) {
@@ -600,7 +601,7 @@ function notes(meeting: Partial<Meeting>): string {
 	return ''
 }
 
-function people(names: string[], combined: CombinedNames): string {
+function people(names: string[], combined: CombineNames): string {
 	return names.map(name => combined.has(name)
 		? combined.get(name)! + ' (' + name + ')'
 		: name).join(', ')

@@ -9,7 +9,7 @@ import type { Gap, Meeting } from './meeting.ts'
 import type { Day } from './day.ts'
 import type { TpacDays } from './tpacs.ts'
 
-export type CombinedNames = Map<string, string>
+export type CombineNames = Map<string, string>
 type DayThings<T> = Map<Day, T[]>
 export type DayMeetings = DayThings<Meeting>
 type DayGaps = DayThings<Gap>
@@ -76,7 +76,7 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 //        TODO: should indicate moved/exact/subset in list items too?
 export default function processSchedule(
 	tpacDays: TpacDays,
-	equivalents: CombinedNames,
+	equivalents: CombineNames,
 	alts: string[],
 	validMeetings: Meeting[],
 ): ScheduleResult {
