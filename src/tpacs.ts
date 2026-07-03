@@ -5,7 +5,7 @@ import type { Day } from './day.ts'
 export const tpacYears = [ 2025 ] as const
 export type TpacYear = typeof tpacYears[number]
 
-export type TpacDays = Record<Day, {
+export type TpacDayInfo = Record<Day, {
 	midnight: Temporal.PlainDateTime
 	start: Temporal.PlainDateTime
 	end: Temporal.PlainDateTime
@@ -13,7 +13,7 @@ export type TpacDays = Record<Day, {
 
 export interface Tpac {
 	icsUrl: string,
-	days: TpacDays
+	days: TpacDayInfo
 }
 
 type Tpacs = Record<TpacYear, Tpac>

@@ -7,7 +7,7 @@ import { repoFromIssueUrl } from './repo.ts'
 
 import type { Gap, Meeting } from './meeting.ts'
 import type { Day } from './day.ts'
-import type { TpacDays } from './tpacs.ts'
+import type { TpacDayInfo } from './tpacs.ts'
 
 export type CombineNames = Map<string, string>
 type DayThings<T> = Map<Day, T[]>
@@ -75,7 +75,7 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 //        TODO: It will be the same when displaying meetings in lists (not fully) too!
 //        TODO: should indicate moved/exact/subset in list items too?
 export default function processSchedule(
-	tpacDays: TpacDays,
+	dayInfo: TpacDayInfo,
 	equivalents: CombineNames,
 	alts: string[],
 	validMeetings: Meeting[],
@@ -117,7 +117,7 @@ export default function processSchedule(
 
 	for (const [ person, dayMeetings ] of personDayMeetings) {
 		for (const [ day, meetings ] of dayMeetings) {
-			const workingDay = tpacDays[day]
+			const workingDay = dayInfo[day]
 			let endOfLastMeeting = workingDay.start
 
 			for (const meeting of meetings) {

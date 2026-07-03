@@ -9,7 +9,7 @@ import type { CalendarMeetingGetter } from './calendar.ts'
 import type { Day } from './day.ts'
 import type { GhIssue } from './query-issues.ts'
 import type { Meeting } from './meeting.ts'
-import type { TpacDays } from './tpacs.ts'
+import type { TpacDayInfo } from './tpacs.ts'
 
 export const _test = { parseBodyInfo }
 
@@ -26,11 +26,11 @@ interface ParsedGhBodyInfo {
 let meetingCounter = 1
 
 export default function meetingFromIssue(
-	tpac: TpacDays,
+	dayInfo: TpacDayInfo,
 	getter: CalendarMeetingGetter,
 	issue: GhIssue,
 ): Meeting | Partial<Meeting> {
-	const bodyInfo = parseBodyInfo(tpac, issue.body)
+	const bodyInfo = parseBodyInfo(dayInfo, issue.body)
 	bodyInfo.extraPeople ??= []
 
 	const names = issue.assignees.map(assignee => assignee.login)
@@ -60,14 +60,14 @@ export default function meetingFromIssue(
 	}
 }
 
-function parseBodyInfo(tpac: TpacDays, body: string): Partial<ParsedGhBodyInfo> {
+function parseBodyInfo(dayInfo: TpacDayInfo, body: string): Partial<ParsedGhBodyInfo> {
 	// GitHub API line-ending weirdness: https://github.com/actions/runner/issues/1462#issuecomment-2676329157
 	const bodyLines = body.split(/\r?\n/)
 
 	const calendarUrl = bodyLines.shift()
 	const rawDay = bodyLines.shift()?.toLowerCase()
 	const day = isDay(rawDay) ? rawDay : undefined
-	const startOfDay = day ? tpac[day].midnight : undefined
+	const startOfDay = day ? dayInfo[day].midnight : undefined
 	const time = bodyLines.shift()
 	const startAndEnd = startOfDay ? time?.split(/ ?[–-] ?/).map(tstr => timeStringToPlainDateTime(startOfDay, tstr)) : []
 	const start = startAndEnd?.[0]

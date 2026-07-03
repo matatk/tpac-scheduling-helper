@@ -5,9 +5,9 @@ import { Temporal } from '@js-temporal/polyfill'
 import { _test } from '../src/meeting-from-issue'
 const { parseBodyInfo } = _test
 
-import type { TpacDays } from '../src/tpacs'
+import type { TpacDayInfo } from '../src/tpacs'
 
-const tpac2025: TpacDays = {
+const tpac2025: TpacDayInfo = {
 	monday: {
 		midnight: new Temporal.PlainDateTime(2025, 11, 10),
 		   start: new Temporal.PlainDateTime(2025, 11, 10, 9),
