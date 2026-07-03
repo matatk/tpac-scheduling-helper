@@ -47,19 +47,19 @@ function errorOut(...args: unknown[]) {
 	process.exit(42)
 }
 
-function write(fileName: string, html: string) {
-	fs.writeFileSync(fileName, html)
-	console.log('Written', fileName + '.')
+function write(fileName: string, thingName: string, text: string) {
+	fs.writeFileSync(fileName, text)
+	console.log('Written', thingName, 'to:', fileName)
 }
 
 function getIssues(gh: string, defaultLabel?: string, repo?: RepoSpec[], queryResult?: string) {
 	const issues: GhIssue[] = []
 
 	if (queryResult) {
-		console.log('Using existing query result.')
+		console.log('Using existing query result:', queryResult)
 		issues.push(...JSON.parse(fs.readFileSync(queryResult, 'utf-8')) as unknown as GhIssue[])
 	} else if (repo) {
-		console.log('Querying repo(s)...')
+		console.log('Querying repo(s) with gh...')
 		for (const repoLabel of repo) {
 			try {
 				issues.push(...queryIssues(gh, repoLabel[0], repoLabel[1] ?? defaultLabel))
@@ -310,7 +310,7 @@ function main() {
 	calendarInit(tpac.icsUrl, argv.calendar)
 
 	if (argv.outputPlan) {
-		write((argv as ProgArgs).outputPlan, generateMeetingList({
+		write((argv as ProgArgs).outputPlan, 'meeting list', generateMeetingList({
 			equivalents,
 			issues,
 			repoNames: (argv as ProgArgs).repo?.map(repoLabel => repoLabel[0]!).reverse() ?? [],
@@ -319,7 +319,7 @@ function main() {
 	}
 
 	if (argv.outputSchedule) {
-		write((argv as ProgArgs).outputSchedule, doScheduling({
+		write((argv as ProgArgs).outputSchedule, 'scheduling info', doScheduling({
 			alternatives: (argv as ProgArgs).alternatives ?? [],
 			equivalents,
 			issues,
@@ -328,7 +328,7 @@ function main() {
 	}
 
 	if (argv.saveResult) {
-		write(argv.saveResult, JSON.stringify(issues, null, 2))
+		write(argv.saveResult, 'JSON returned via gh', JSON.stringify(issues, null, 2))
 	}
 }
 
