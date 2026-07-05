@@ -11,7 +11,7 @@ export type TpacDayInfo = Record<Day, {
 	end: Temporal.PlainDateTime
 }>
 
-export interface Tpac {
+interface Tpac {
 	icsUrl: string,
 	days: TpacDayInfo
 }

@@ -18,24 +18,25 @@ import queryIssues from './src/query-issues.ts'
 import type { CombineNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/query-issues.ts'
 import type { Meeting } from './src/meeting.ts'
-import type { Tpac, TpacYear } from './src/tpacs.ts'
+import type { TpacDayInfo, TpacYear } from './src/tpacs.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
 const STYLE_FILE = path.join(import.meta.dirname, 'static', 'style.css')
 const SCRIPT_FILE = path.join(import.meta.dirname, 'static', 'create-issue.js')
 
-type RepoSpec = [string] | [string, string]
+type RepoSpecRaw = [string] | [string, string] // [ repo ] | [ repo, label ]
+export type RepoSpec = [string, string]  // [ repo, label ]
 type CombineNamesArgs = [string, string][]
 
 interface BaseArgs {
+	dayInfo: TpacDayInfo
 	equivalents: CombineNames
 	issues: GhIssue[]
-	tpac: Tpac
 }
 
 interface GenerateMeetingListArgs extends BaseArgs {
-	repoNames: string[]
+	repos: RepoSpec[]
 }
 
 interface DoSchedulingArgs extends BaseArgs {
@@ -52,17 +53,17 @@ function write(fileName: string, thingName: string, text: string) {
 	console.log('Written', thingName, 'to:', fileName)
 }
 
-function getIssues(gh: string, defaultLabel?: string, repo?: RepoSpec[], queryResult?: string) {
+function getIssues(gh: string, repos: RepoSpec[], queryResult?: string) {
 	const issues: GhIssue[] = []
 
 	if (queryResult) {
 		console.log('Using existing query result:', queryResult)
 		issues.push(...JSON.parse(fs.readFileSync(queryResult, 'utf-8')) as unknown as GhIssue[])
-	} else if (repo) {
+	} else {
 		console.log('Querying repo(s) with gh...')
-		for (const repoLabel of repo) {
+		for (const [ repo, label ] of repos) {
 			try {
-				issues.push(...queryIssues(gh, repoLabel[0], repoLabel[1] ?? defaultLabel))
+				issues.push(...queryIssues(gh, repo, label))
 			} catch (err) {
 				errorOut(err)
 			}
@@ -84,15 +85,15 @@ function makeEquivalents(combine?: CombineNamesArgs): CombineNames {
 }
 
 function generateMeetingList({
+	dayInfo,
 	equivalents,
 	issues,
-	repoNames,
-	tpac,
+	repos,
 }: GenerateMeetingListArgs): string {
 	// NOTE: This includes invalid ones
 	const plannedMeetings = issues.reduce(
 		(acc: Record<string, Partial<Meeting>[]>, issue) => {
-			const meeting = meetingFromIssue(tpac.days, calendarMeeting, issue)
+			const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue)
 			if (meeting.id) {
 				if (acc[meeting.id]) {
 					acc[meeting.id]!.push(meeting)
@@ -107,10 +108,11 @@ function generateMeetingList({
 
 	const html = makeMeetingListPage({
 		allMeetings,
+		dayInfo,
 		equivalents,
 		myName: MY_NAME,
 		myUrl: MY_URL,
-		repoNames,
+		repos,
 		script: SCRIPT_FILE,
 		style: STYLE_FILE,
 	})
@@ -120,11 +122,11 @@ function generateMeetingList({
 
 function doScheduling({
 	alternatives,
+	dayInfo,
 	equivalents,
 	issues,
-	tpac,
 }: DoSchedulingArgs): string {
-	const allMeetings = issues.map((issue => meetingFromIssue(tpac.days, calendarMeeting, issue)))
+	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, issue)))
 
 	const {
 		validMeetings,
@@ -144,7 +146,7 @@ function doScheduling({
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-	} = processSchedule(tpac.days, equivalents, alternatives, validMeetings)
+	} = processSchedule(dayInfo, equivalents, alternatives, validMeetings)
 
 	const html = makeSchedulingPage({
 		invalidMeetings,
@@ -241,7 +243,7 @@ function getArgv() {
 				&& repo.every(value => typeof value === 'string')) {
 				return [ repo ]
 			}
-			return repo as RepoSpec[]
+			return repo as []
 		})
 		.coerce('alternatives', Array.prototype.flat)
 		.coerce('combine', combine => {
@@ -295,35 +297,51 @@ function getArgv() {
 function main() {
 	const argv = getArgv()
 
-	type ProgArgs = typeof argv & {
+	type ProgArgs = Omit<typeof argv,
+		| 'alternatives'
+		| 'combine'
+		| 'outputPlan'
+		| 'outputSchedule'
+		| 'repo'
+		| 'year'
+	> & {
 		alternatives?: string[]
 		combine?: CombineNamesArgs
 		outputPlan: string
 		outputSchedule: string
-		repo?: RepoSpec[]
+		repo?: RepoSpecRaw[]
 		year: TpacYear
 	}
 
+	const repos = (argv as ProgArgs).repo?.reduce((acc: RepoSpec[], cur) => {
+		if (cur.length == 2) {
+			acc.push(cur)
+		} else {
+			acc.push([ ...cur, argv.label ?? '' ])
+		}
+		return acc
+	}, []) ?? []
+
 	const tpac = TPACs[(argv as ProgArgs).year]
 	const equivalents = makeEquivalents((argv as ProgArgs).combine)
-	const issues = getIssues(argv.gh, argv.label, (argv as ProgArgs).repo, argv.queryResult)
+	const issues = getIssues(argv.gh, repos, argv.queryResult)
 	calendarInit(tpac.icsUrl, argv.calendar)
 
 	if (argv.outputPlan) {
 		write((argv as ProgArgs).outputPlan, 'meeting list', generateMeetingList({
+			dayInfo: tpac.days,
 			equivalents,
 			issues,
-			repoNames: (argv as ProgArgs).repo?.map(repoLabel => repoLabel[0]!).reverse() ?? [],
-			tpac,
+			repos,
 		}))
 	}
 
 	if (argv.outputSchedule) {
 		write((argv as ProgArgs).outputSchedule, 'scheduling info', doScheduling({
 			alternatives: (argv as ProgArgs).alternatives ?? [],
+			dayInfo: tpac.days,
 			equivalents,
 			issues,
-			tpac,
 		}))
 	}
 

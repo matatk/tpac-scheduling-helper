@@ -5,16 +5,20 @@ import { Temporal } from '@js-temporal/polyfill'
 import { isCalendarMeeting } from './calendar.ts'
 import { isMeeting } from './meeting.ts'
 import { repoFromIssueUrl } from './repo.ts'
+import { days } from './day.ts'
 import sort from './sort.ts'
 
 import type { CombineNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
 import type { CalendarMeeting } from './calendar.ts'
+import type { TpacDayInfo } from './tpacs.ts'
+import type { Day } from './day.ts'
+import type { RepoSpec } from '../tsh.ts'
 
 type MeetingCardArgs =
 	| { kind: 'calendar', meeting: CalendarMeeting,
-			headingLevel: number, repoNames: string[] }
+			headingLevel: number, repos: RepoSpec[] }
 	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
 		  headingLevel: number, equivalents: CombineNames }
 
@@ -34,7 +38,8 @@ interface BaseOutputInfo {
 // TODO: get DayMeetings into this?
 interface MeetingListPageOutputInfo extends BaseOutputInfo {
 	allMeetings: (CalendarMeeting | Partial<Meeting>)[]
-	repoNames: string[]
+	dayInfo: TpacDayInfo
+	repos: RepoSpec[]
 	script: string
 }
 
@@ -75,16 +80,19 @@ const statusPretty: Record<Status, string> = {
 	cancelled: 'Cancelled',
 } as const
 
+const BEFORE_TPAC_ID = 'before'
+const BEFORE_TPAC_HEADING = 'Before TPAC'
 const UNKNOWN_PROPERTY = '???'
 
 let headingCounter = 0
 
 export function makeMeetingListPage({
 	allMeetings,
+	dayInfo,
 	equivalents,
 	myName,
 	myUrl,
-	repoNames,
+	repos,
 	script,
 	style,
 }: MeetingListPageOutputInfo): string {
@@ -99,29 +107,53 @@ export function makeMeetingListPage({
 			<header>
 				<h1>${myName}: Full Meeting List</h1>
 			</header>
-			<nav>FIXME: Put something here, or change the styles...</nav>
-			<main>
-				<div class="meeting-container">`
+			<nav>
+				<h2>Meeting Days</h2>
+				${meetingListDayLinks()}
+			</nav>
+			<main>`
 
-	const htmlEnd = `</div>
-		</main>
+	const htmlEnd = `</main>
 		<footer>
 			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
 		</footer>
 		<script>${fs.readFileSync(script, 'utf-8')}</script>
 		</body></html>`
 
-	let htmlMiddle = ''
+	const beforeAndDayMeeitngs = new Map([ null, ...days ].map(era => [ era, [] ])) as Map<Day | null | undefined, string[]>
+
 	for (const meeting of allMeetings) {
+		const key = meeting.calendarStart
+			? Temporal.PlainDateTime.compare(meeting.calendarStart, dayInfo.monday.midnight) < 0
+				? null
+				: meeting.calendarDay
+			: undefined
+
 		// FIXME: Can we get rid of both isCalendarMeeting() and the 'kind' parameter?
 		if (isCalendarMeeting(meeting)) {
-			htmlMiddle += meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repoNames })
+			beforeAndDayMeeitngs.get(key)?.push(
+				meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos }))
 		} else {
-			htmlMiddle += meetingCard({ kind: 'meeting', meeting, headingLevel: 1, equivalents })
+			beforeAndDayMeeitngs.get(key)?.push(
+				meetingCard({ kind: 'meeting', meeting, headingLevel: 1, equivalents }))
 		}
 	}
 
-	return htmlStart + htmlMiddle + htmlEnd
+	const dayMeetings = beforeAndDayMeeitngs.entries().reduce((acc: string, entry) => {
+		const [ key, meetings ] = entry
+		if (key !== undefined) {
+			const id = key === null ? BEFORE_TPAC_ID : key
+			const heading = key === null ? BEFORE_TPAC_HEADING : pretty(key)
+			return acc +
+				sectionWithLandmarkOpening(2, false, id, heading) +
+				'<div class="meeting-container">' +
+				meetings.join('\n') +
+				'</div></section>'
+		}
+		return acc
+	}, '')
+
+	return htmlStart + dayMeetings + htmlEnd
 }
 
 export function makeSchedulingPage({
@@ -263,6 +295,25 @@ export function makeSchedulingPage({
 	return html + htmlEnd
 }
 
+function meetingListDayLinks() {
+	return '<ul>' + [ BEFORE_TPAC_ID ].concat(days).map(occasion =>
+		`<li><p><a href="#${occasion}">
+				${occasion === BEFORE_TPAC_ID ? BEFORE_TPAC_HEADING : pretty(occasion)}
+			</a></p></li>`).join('')
+		+ '</ul>'
+}
+
+function sectionWithLandmarkOpening(
+	headingLevel: number,
+	restrained: boolean,
+	id: string,
+	heading: string,
+): string {
+	const klass = restrained ? ' class="restrained"' : ''
+	return `<section aria-labelledby="${id}"${klass}>
+		<h${String(headingLevel)} id="${id}">${heading}</h${String(headingLevel)}>`
+}
+
 function sectionWithLandmark(
 	headingLevel: number,
 	restrained: boolean,
@@ -270,11 +321,7 @@ function sectionWithLandmark(
 	heading: string,
 	content: string,
 ): string {
-	const klass = restrained ? ' class="restrained"' : ''
-	return `<section aria-labelledby="${id}"${klass}>
-		<h${String(headingLevel)} id="${id}">${heading}</h${String(headingLevel)}>
-		${content}
-	</section>`
+	return sectionWithLandmarkOpening(headingLevel, restrained, id, heading) + content + '</section>'
 }
 
 function sectionWithoutLandmark(
@@ -436,7 +483,7 @@ function inlineSummary(meeting: Meeting, includeDay: boolean, combned: CombineNa
 }
 
 function htmlEscapeThatNeedsImproving(text?: string): string {
-	return text ? text.replace('<', '&lt;').replace('>', '&gt;') : '???'
+	return text ? text.replace('<', '&lt;').replace('>', '&gt;') : UNKNOWN_PROPERTY
 }
 
 function meetingCardHeader<T extends MeetingCardHeaderArgs>(args: T): string {
@@ -466,7 +513,7 @@ function meetingCardHeader<T extends MeetingCardHeaderArgs>(args: T): string {
 
 	const fullHeadingId = args.kind === 'calendar' && args.seq ? ` id="${idFor(args.seq, 'heading')}"` : ''
 	const tag = args.kind !== 'calendar' && args.meeting.id ? ` id="${String(args.meeting.tag)}"` : ''
-	const vitals = args.kind !== 'calendar' ? `<p><i>${htmlEscapeThatNeedsImproving(args.meeting.title)}</i> <span>from: ${args.meeting.issueUrl ? repoFromIssueUrl(args.meeting.issueUrl) ?? '???' : '???'}</span></p>` : ''
+	const vitals = args.kind !== 'calendar' ? `<p><i>${htmlEscapeThatNeedsImproving(args.meeting.title)}</i> <span>from: ${args.meeting.issueUrl ? repoFromIssueUrl(args.meeting.issueUrl) ?? UNKNOWN_PROPERTY : UNKNOWN_PROPERTY}</span></p>` : ''
 
 	return `<div${tag} class="meeting${klasses}">
 		<hgroup>
@@ -474,8 +521,8 @@ function meetingCardHeader<T extends MeetingCardHeaderArgs>(args: T): string {
 			${vitals}
 		</hgroup>
 		<dl>
-			<dt>Kind</dt><dd>${args.meeting.kind ? kindPretty[args.meeting.kind] : '???'}</dd>
-			<dt>Status</dt><dd>${args.meeting.status ? statusPretty[args.meeting.status] : '???'}</dd>`
+			<dt>Kind</dt><dd>${args.meeting.kind ? kindPretty[args.meeting.kind] : UNKNOWN_PROPERTY}</dd>
+			<dt>Status</dt><dd>${args.meeting.status ? statusPretty[args.meeting.status] : UNKNOWN_PROPERTY}</dd>`
 }
 
 function meetingCard<T extends MeetingCardArgs>(args: T): string {
@@ -483,11 +530,11 @@ function meetingCard<T extends MeetingCardArgs>(args: T): string {
 	let tail = ''
 
 	if (args.kind === 'calendar') {
-		const { meeting, headingLevel, repoNames } = args
+		const { meeting, headingLevel, repos } = args
 		if (meeting.status !== 'cancelled') {
 			const seq = headingCounter++
 			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel, seq })
-			tail = newIssueForm(repoNames, seq)
+			tail = newIssueForm(repos, seq)
 		} else {
 			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel })
 		}
@@ -511,10 +558,10 @@ function meetingCard<T extends MeetingCardArgs>(args: T): string {
 		out += `<dt>Time</dt><dd>${dtf(args.meeting.calendarStart)}&ndash;${dtf(args.meeting.calendarEnd)}</dd>`
 	}
 
-	out += `<dt>Room</dt><dd>${args.meeting.room ?? '???'}</dd>`
-	if (args.kind === 'meeting' && args.equivalents && args.meeting.names) out += `<dt>People</dt><dd>${args.meeting.names ? people(args.meeting.names, args.equivalents) : '???'}</dd>`
-	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? '???'}">${args.meeting.calendarUrl ?? '???'}</a></dd>`
-	if ('issueUrl' in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? '???'}">${args.meeting.issueUrl ?? '???'}</a></dd>`
+	out += `<dt>Room</dt><dd>${args.meeting.room ?? UNKNOWN_PROPERTY}</dd>`
+	if (args.kind === 'meeting' && args.equivalents && args.meeting.names) out += `<dt>People</dt><dd>${args.meeting.names ? people(args.meeting.names, args.equivalents) : UNKNOWN_PROPERTY}</dd>`
+	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}">${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}</a></dd>`
+	if ('issueUrl' in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}">${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}</a></dd>`
 
 	if (args.kind !== 'calendar' && args.meeting.match) out += `<dt>Time match</dt><dd>${matchPretty[args.meeting.match]}</dd>`
 	if (args.kind !== 'calendar' && (args.meeting.alternatives?.length ?? 0) > 0) {
@@ -527,12 +574,13 @@ function meetingCard<T extends MeetingCardArgs>(args: T): string {
 	return out + tail + '</div>'
 }
 
-function newIssueForm(repos: string[], seq: number) {
+function newIssueForm(repos: RepoSpec[], seq: number) {
+	const SEP = ' :: '
 	const buttonId = idFor(seq, 'button')
 	const repoId = idFor(seq, 'repo')
 
-	const options = repos.reduce((out, repo) =>
-		out + `<option value="${repo}">${repo}</option>`
+	const options = repos.reduce((out, [ repo, label ]) =>
+		out + `<option data-repo="${repo}" data-label="${label}">${repo}${SEP}${label.length ? label : '(no label)'}</option>`
 	, '')
 
 	return `
