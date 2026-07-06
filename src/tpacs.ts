@@ -2,7 +2,7 @@ import { Temporal } from '@js-temporal/polyfill'
 
 import type { Day } from './day.ts'
 
-export const tpacYears = [ 2025 ] as const
+export const tpacYears = [ 2025, 2026 ] as const
 export type TpacYear = typeof tpacYears[number]
 
 export type TpacDayInfo = Record<Day, {
@@ -46,6 +46,36 @@ const TPACs: Tpacs = {
 				midnight: new Temporal.PlainDateTime(2025, 11, 14),
 				   start: new Temporal.PlainDateTime(2025, 11, 14, 9),
 				     end: new Temporal.PlainDateTime(2025, 11, 14, 18),
+			},
+		},
+	},
+	2026: {
+		icsUrl: 'https://www.w3.org/calendar/tpac2026/export/',
+		days: {
+			monday: {
+				midnight: new Temporal.PlainDateTime(2026, 10, 26),
+				   start: new Temporal.PlainDateTime(2026, 10, 26, 8),
+				     end: new Temporal.PlainDateTime(2026, 10, 26, 18),
+			},
+			tuesday: {
+				midnight: new Temporal.PlainDateTime(2026, 10, 27),
+				   start: new Temporal.PlainDateTime(2026, 10, 27, 8),
+				     end: new Temporal.PlainDateTime(2026, 10, 27, 18),
+			},
+			wednesday: {
+				midnight: new Temporal.PlainDateTime(2026, 10, 28),
+				   start: new Temporal.PlainDateTime(2026, 10, 28, 8),
+				     end: new Temporal.PlainDateTime(2026, 10, 28, 18),
+			},
+			thursday: {
+				midnight: new Temporal.PlainDateTime(2026, 10, 29),
+				   start: new Temporal.PlainDateTime(2026, 10, 29, 8),
+				     end: new Temporal.PlainDateTime(2026, 10, 29, 18),
+			},
+			friday: {
+				midnight: new Temporal.PlainDateTime(2026, 10, 30),
+				   start: new Temporal.PlainDateTime(2026, 10, 30, 8),
+				     end: new Temporal.PlainDateTime(2026, 10, 30, 18),
 			},
 		},
 	},

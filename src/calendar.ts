@@ -76,7 +76,7 @@ export function calendarMeetingsZipped(plannedMeetings: Record<string, Partial<M
 
 function getSchedule(scheduleUrl: string, path: string) {
 	if (!fs.existsSync(path)) {
-		console.log('Downloading schedule...')
+		console.log('Downloading schedule from:', scheduleUrl)
 		const child = spawnSync('curl', [ scheduleUrl, '-o', path ])
 		if (child.error) {
 			throw new Error(child.stderr.toString())

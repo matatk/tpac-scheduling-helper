@@ -1,3 +1,4 @@
+// FIXME: The headings 'Personal results' and 'Timetable' are in the body text even if there are no issues, and the <nav> link to Timetables exists, and doesn't say '(none)' after it, like the other ones.
 import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
