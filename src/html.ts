@@ -659,6 +659,7 @@ function people(names: string[], combined: CombineNames): string {
 function dtf(pdt?: Temporal.PlainDateTime): string {
 	return pdt
 		? pdt.toLocaleString(undefined, {
+			hourCycle: 'h23',
 			hour: '2-digit',
 			minute: '2-digit',
 		})
