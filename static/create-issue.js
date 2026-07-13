@@ -8,8 +8,8 @@ function createNewIssue(event) {
 
 	const dl = event.currentTarget.form.previousElementSibling
 	const calendarUrl = dl.children[11].innerText
-	const day = dl.children[7].innerText
-	const times = dl.children[9].innerText
+	const day = dl.children[5].innerText
+	const times = dl.children[7].innerText
 	const body = encodeURIComponent([calendarUrl, day, times].join('\n'))
 
 	const labelParam = label ? `&labels=${label}` : ''
