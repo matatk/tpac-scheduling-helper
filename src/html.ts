@@ -3,19 +3,19 @@ import fs from 'fs'
 
 import { Temporal } from '@js-temporal/polyfill'
 
+import { days } from './day.ts'
 import { isCalendarMeeting } from './calendar.ts'
 import { isMeeting } from './meeting.ts'
 import { repoFromIssueUrl } from './repo.ts'
-import { days } from './day.ts'
 import sort from './sort.ts'
 
 import type { CombineNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
 import type { CalendarMeeting } from './calendar.ts'
-import type { TpacDayInfo } from './tpacs.ts'
 import type { Day } from './day.ts'
 import type { RepoSpec } from '../tsh.ts'
+import type { TpacDayInfo } from './tpacs.ts'
 
 type MeetingCardArgs =
 	| { kind: 'calendar', meeting: CalendarMeeting,
@@ -143,7 +143,7 @@ export function makeMeetingListPage({
 	const dayMeetings = beforeAndDayMeeitngs.entries().reduce((acc: string, entry) => {
 		const [ key, meetings ] = entry
 		if (key !== undefined) {
-			const id = key === null ? BEFORE_TPAC_ID : key
+			const id = key ?? BEFORE_TPAC_ID
 			const heading = key === null ? BEFORE_TPAC_HEADING : pretty(key)
 			return acc +
 				sectionWithLandmarkOpening(2, false, id, heading) +
@@ -487,7 +487,7 @@ function htmlEscapeThatNeedsImproving(text?: string): string {
 	return text ? text.replace('<', '&lt;').replace('>', '&gt;') : UNKNOWN_PROPERTY
 }
 
-function meetingCardHeader<T extends MeetingCardHeaderArgs>(args: T): string {
+function meetingCardHeader(args: MeetingCardHeaderArgs): string {
 	const nature: Nature[] = []
 	const klasslist: string[] = []
 
@@ -526,7 +526,7 @@ function meetingCardHeader<T extends MeetingCardHeaderArgs>(args: T): string {
 			<dt>Status</dt><dd>${args.meeting.status ? statusPretty[args.meeting.status] : UNKNOWN_PROPERTY}</dd>`
 }
 
-function meetingCard<T extends MeetingCardArgs>(args: T): string {
+function meetingCard(args: MeetingCardArgs): string {
 	let out = ''
 	let tail = ''
 
@@ -560,7 +560,7 @@ function meetingCard<T extends MeetingCardArgs>(args: T): string {
 	}
 
 	out += `<dt>Room</dt><dd>${args.meeting.room ?? UNKNOWN_PROPERTY}</dd>`
-	if (args.kind === 'meeting' && args.equivalents && args.meeting.names) out += `<dt>People</dt><dd>${args.meeting.names ? people(args.meeting.names, args.equivalents) : UNKNOWN_PROPERTY}</dd>`
+	if (args.kind === 'meeting' && args.meeting.names) out += `<dt>People</dt><dd>${people(args.meeting.names, args.equivalents)}</dd>`
 	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}">${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}</a></dd>`
 	if ('issueUrl' in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}">${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}</a></dd>`
 
