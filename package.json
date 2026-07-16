@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "bin": {
-    "tpac-scheduling-helper": "./tsh.ts"
+    "tpac-scheduling-helper": "dist/tsh.mjs"
   },
   "scripts": {
-    "//build": "Needs -o and -r arguments. E.g. `npm run build -- -o schedule.html -r matatk/tpac-scheduling-helper`",
-    "build": "tsx tsh.ts -m tpac.html",
+    "build": "tsdown tsh.ts",
     "lint": "eslint .",
+    "prepare": "npm run build",
     "test": "vitest"
   },
   "dependencies": {
@@ -23,6 +23,7 @@
     "@types/node": "^25.9.3",
     "@types/yargs": "^17.0.35",
     "eslint": "^10.5.0",
+    "tsdown": "^0.22.9",
     "tsx": "^4.22.4",
     "typescript-eslint": "^8.61.0",
     "vitest": "^4.1.8"

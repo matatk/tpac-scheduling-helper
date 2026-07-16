@@ -22,8 +22,8 @@ import type { TpacDayInfo, TpacYear } from './src/tpacs.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
-const STYLE_FILE = path.join(import.meta.dirname, 'static', 'style.css')
-const SCRIPT_FILE = path.join(import.meta.dirname, 'static', 'create-issue.js')
+const STYLE_FILE = path.join('static', 'style.css')
+const SCRIPT_FILE = path.join('static', 'create-issue.js')
 
 type RepoSpecRaw = [string] | [string, string] // [ repo ] | [ repo, label ]
 export type RepoSpec = [string, string]  // [ repo, label ]
@@ -51,6 +51,17 @@ function errorOut(...args: unknown[]) {
 function write(fileName: string, thingName: string, text: string) {
 	fs.writeFileSync(fileName, text)
 	console.log('Written', thingName, 'to:', fileName)
+}
+
+function pathFromPackageRoot(partial: string) {
+	let dir = import.meta.dirname
+	while (dir !== path.parse(dir).root) {
+		if (fs.existsSync(path.join(dir, 'package.json'))) {
+			return path.join(dir, partial)
+		}
+		dir = path.dirname(dir)
+	}
+	throw new Error("Couldn't find static assets.")
 }
 
 function getIssues(gh: string, repos: RepoSpec[], queryResult?: string) {
@@ -113,8 +124,8 @@ function generateMeetingList({
 		myName: MY_NAME,
 		myUrl: MY_URL,
 		repos,
-		script: SCRIPT_FILE,
-		style: STYLE_FILE,
+		script: pathFromPackageRoot(SCRIPT_FILE),
+		style: pathFromPackageRoot(STYLE_FILE),
 	})
 
 	return html
@@ -163,7 +174,7 @@ function doScheduling({
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-		style: STYLE_FILE,
+		style: pathFromPackageRoot(STYLE_FILE),
 		myName: MY_NAME,
 		myUrl: MY_URL,
 	})
