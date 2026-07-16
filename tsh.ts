@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // FIXME: Now that we're using Temporal.PlainDateTime for the meeting times, detection of moved meetings should be a lot simpler. Probably good to still keep the day around becuase it helps UX having the day name.
 // FIXME: include an option to ignore closed issues? Or do so by default and include one to look at closed issues?
+// TODO: Should the tool really include the overridden names in its output, as mentioned in the README?
 import fs from 'fs'
 import path from 'path'
 
@@ -293,9 +294,9 @@ function getArgv() {
 			return true
 		})
 		.conflicts('query-result', 'save-result')
-		.example('--repo w3c/apa-tpac-meetings', 'Query the "w3c/apa-tpac-meetings" repo, use the default label, or that specified with the --label option.\n')
+		.example('--repo w3c/apa-tpac-meetings', 'Query the "w3c/apa-tpac-meetings" repo, fetching all issues, or those labelled as per the --label option.\n')
 		.example('--repo w3c/apa --repo w3c/aria', 'Query multiple repos.\n')
-		.example('--repo w3c/apa tpac-2025 --repo w3c/aria', 'Use a custom label for the "w3c/apa" repo.\n')
+		.example('--repo w3c/apa tpac-2025 --repo w3c/aria', 'Use a specific label for the "w3c/apa" repo.\n')
 		.example('--combine TopSecretAnna PublicAnna', 'Any instance of TopSecretAnna will be considered as PublicAnna.\n')
 		.group([ 'calendar', 'repo', 'output-plan', 'output-schedule' ], 'Vital info:')
 		.group([ 'label', 'gh', 'alternatives', 'combine' ], 'Issue/filtering options:')
