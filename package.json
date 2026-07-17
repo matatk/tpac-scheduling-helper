@@ -9,8 +9,9 @@
   "scripts": {
     "build": "tsdown tsh.ts",
     "lint": "eslint .",
-    "test": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "screengrabs": "./tsh.ts -c cache/schedule-2026.ics -r matatk/apa-et-al-tpac-2026 -s cache/tpac-2026-scheduling.html -p cache/tpac-2026-list.html && doc/screengrab.ts",
+    "test": "vitest"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
@@ -24,6 +25,8 @@
     "@types/yargs": "^17.0.35",
     "eslint": "^10.5.0",
     "husky": "^9.1.7",
+    "playwright": "^1.61.1",
+    "sharp": "^0.35.3",
     "tsdown": "^0.22.9",
     "typescript-eslint": "^8.61.0",
     "vitest": "^4.1.8"

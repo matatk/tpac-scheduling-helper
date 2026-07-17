@@ -2,6 +2,22 @@
 
 This tool is designed to help you plan a small group's attendance of [W3C TPAC](https://www.w3.org/news-events/tpac/).
 
+**Choosing meetings to attend:**
+
+<p><kbd><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/planning-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="doc/planning-light.png">
+  <img alt="Full meeting list page (showing all TPAC meetings)" src="doc/planning-light.png">
+</picture></kbd></p>
+
+**Group timetabling page (excerpt):**
+
+<p><kbd><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/scheduling-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="doc/scheduling-light.png">
+  <img alt="Group timetabling page (covering meetings the group plans to attend, showing the week's timetable for one of the group members)" src="doc/scheduling-light.png">
+</picture></kbd></p>
+
 The idea is that you file issues in a GitHub repo that correspond to meetings (or parts of meetings) that you would like to attend, and you can attach notes as to what you'd like to contribute etc. You can then run the tool every so-often to check...
 
 * ...if the TPAC schedule has changed relative to your plans.
