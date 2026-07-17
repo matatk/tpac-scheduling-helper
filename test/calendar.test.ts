@@ -1,3 +1,5 @@
+import { mkdirSync } from 'fs'
+
 import { describe, expect, test } from 'vitest'
 
 import { Temporal } from '@js-temporal/polyfill'
@@ -5,9 +7,14 @@ import { Temporal } from '@js-temporal/polyfill'
 import { calendarInit, calendarMeeting, calendarMeetingsZipped } from '../src/calendar'
 
 function setUp() {
+	try {
+		mkdirSync('test/cache', 0o744)
+	} catch {
+		// all good
+	}
 	calendarInit(
 		'https://www.w3.org/calendar/tpac2025/export/', // NOTE: trailing slash is required.
-		'cache/schedule-2025.ics')
+		'test/cache/schedule-2025.ics')
 }
 
 describe('Converting all events', () => {

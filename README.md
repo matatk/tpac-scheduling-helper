@@ -30,10 +30,7 @@ Technical dependencies are:
 
 You can install it as a clobal CLI tool directly from this repo:
 
-    npm --global install matatk/tpac-scheduling-helper --allow-git=root
-
-> [!NOTE]
-> As part of the installation process, the TypeScript code is transpiled to JavaScript. Since NPM 12, this should be blocked (to prevent supply chain risks) and my NPM says it is, but doesn't actually seem to be blocking it in practice. It is best practice to add `--allow-scripts=tpac-scheduling-helper` onto the command line, but that didn't work with a `--global` install. YMMV; please file an issue if you are having problems and maybe we can work it out.
+    npm --global install matatk/tpac-scheduling-helper --ignore-scripts --install-links --allow-git=root
 
 ### Set up for development
 
