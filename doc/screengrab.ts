@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/// <reference types="@types/web" />
 import path from 'path'
 
 import { chromium } from 'playwright'
@@ -26,8 +27,9 @@ async function capture(relPath: string, outputPart: string, scrollDown?: boolean
 
 			await page.setViewportSize(viewportSize)
 
-			if (scrollDown) await page.evaluate(
-				() => window.scrollTo(0, document.body.scrollHeight))
+			if (scrollDown) await page.evaluate(() => {
+				window.scrollTo(0, document.body.scrollHeight)
+			})
 
 			const buffer = await page.screenshot({ fullPage: false })
 

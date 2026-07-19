@@ -1,22 +1,24 @@
-import { fileURLToPath } from 'node:url'
+import { URL, fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'eslint/config'
-import { includeIgnoreFile } from '@eslint/compat'
 import eslint from '@eslint/js'
+import { includeIgnoreFile } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 
 const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url))
 
 export default defineConfig(
+	{
+		ignores: [ 'dist/' ],
+	},
 	eslint.configs.recommended,
 	tseslint.configs.strictTypeChecked,
 	tseslint.configs.stylisticTypeChecked,
 	{
+		files: [ '**/*.ts' ],
   	languageOptions: {
   		parserOptions: {
-  			projectService: {
-  				allowDefaultProject: [ 'eslint.config.mjs' ],
-  			},
+  			projectService: true,
   		},
   	},
 	  rules: {
@@ -30,6 +32,25 @@ export default defineConfig(
 	  	'space-before-function-paren': [ 'error', 'never' ],
 	  	'sort-imports': [ 'error', { allowSeparatedGroups: true } ],
 	  },
+	},
+  {
+	  files: [ 'static/create-issue.js', 'eslint.config.mjs' ],
+	  extends: [ tseslint.configs.disableTypeChecked ],
+	  languageOptions: {
+	    parser: eslint.parser,
+	    parserOptions: {
+	      projectService: false,
+	    }
+	  }
+	},
+  {
+	  files: [ 'static/create-issue.js' ],
+	  languageOptions: {
+	  	globals: {
+	  		document: "readonly",
+	  		window: "readonly",
+	  	}
+	  }
 	},
 	includeIgnoreFile(gitignorePath),
 )

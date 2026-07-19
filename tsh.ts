@@ -16,10 +16,10 @@ import meetingFromIssue from './src/meeting-from-issue.ts'
 import processSchedule from './src/scheduling.ts'
 import queryIssues from './src/query-issues.ts'
 
+import type { TpacDayInfo, TpacYear } from './src/tpacs.ts'
 import type { CombineNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/query-issues.ts'
 import type { Meeting } from './src/meeting.ts'
-import type { TpacDayInfo, TpacYear } from './src/tpacs.ts'
 
 const MY_NAME = 'TPAC scheduling helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
@@ -269,7 +269,7 @@ function getArgv() {
 		.check(args => {
 			for (const [ one, other ] of [ [ 'repo', 'query-result' ], [ 'output-plan', 'output-schedule' ] ]) {
 				if (args[one!] === undefined && args[other!] === undefined) {
-					throw new Error(`One of '--${one}' and '--${other}' must be supplied.`)
+					throw new Error(`One of '--${one!}' and '--${other!}' must be supplied.`)
 				}
 			}
 			return true

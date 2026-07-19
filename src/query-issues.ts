@@ -23,7 +23,7 @@ export default function queryIssues(gh: string, repo: string, label?: string): G
 		throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`)
 	}
 	try {
-		return JSON.parse(child.stdout.toString())
+		return JSON.parse(child.stdout.toString()) as GhIssue[]
 	} catch (err) {
 		throw new Error('Parsing GitHub API result: ' + String(err instanceof Error ? err.message : err), { cause: err })
 	}
