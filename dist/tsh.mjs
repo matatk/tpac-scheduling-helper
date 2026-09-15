@@ -111,11 +111,19 @@ function calendarMeeting(uid) {
 	return calendarInfoFrom(event);
 }
 function calendarMeetingsZipped(plannedMeetings = {}) {
-	return Object.values(icsEvents).reduce((acc, icsEvent) => {
-		if (icsEvent.uid in plannedMeetings) acc.push(...plannedMeetings[icsEvent.uid]);
-		else acc.push(calendarInfoFrom(icsEvent));
-		return acc;
-	}, []);
+	const meetingsWithBookings = /* @__PURE__ */ new Set();
+	return {
+		allMeetings: Object.values(icsEvents).reduce((acc, icsEvent) => {
+			const calendarMeeting = calendarInfoFrom(icsEvent);
+			acc.push(calendarMeeting);
+			if (icsEvent.uid in plannedMeetings) {
+				acc.push(...plannedMeetings[icsEvent.uid]);
+				meetingsWithBookings.add(calendarMeeting);
+			}
+			return acc;
+		}, []),
+		meetingsWithBookings
+	};
 }
 function getSchedule(scheduleUrl, path) {
 	if (!fs.existsSync(path)) {
@@ -223,13 +231,14 @@ function categoriseMeetings(allMeetings) {
 	const invalidMeetings = [];
 	const movedMeetings = [];
 	const unassignedMeetings = [];
-	for (const meeting of allMeetings) if (isMeeting(meeting)) if (meeting.status === "cancelled") cancelledMeetings.push(meeting);
-	else {
-		validMeetings.push(meeting);
-		if (meeting.match === "mismatch") movedMeetings.push(meeting);
-		if (meeting.names.length === 0) unassignedMeetings.push(meeting);
-	}
-	else invalidMeetings.push(meeting);
+	for (const meeting of allMeetings) if (isMeeting(meeting)) {
+		if (meeting.status === "cancelled") cancelledMeetings.push(meeting);
+		else {
+			validMeetings.push(meeting);
+			if (meeting.match === "mismatch") movedMeetings.push(meeting);
+			if (meeting.names.length === 0) unassignedMeetings.push(meeting);
+		}
+	} else invalidMeetings.push(meeting);
 	sort(validMeetings);
 	sort(movedMeetings);
 	sort(unassignedMeetings);
@@ -269,7 +278,7 @@ const BEFORE_TPAC_ID = "before";
 const BEFORE_TPAC_HEADING = "Before TPAC";
 const UNKNOWN_PROPERTY = "???";
 let headingCounter = 0;
-function makeMeetingListPage({ allMeetings, dayInfo, equivalents, myName, myUrl, repos, script, style }) {
+function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equivalents, myName, myUrl, repos, script, style }) {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
@@ -295,13 +304,16 @@ function makeMeetingListPage({ allMeetings, dayInfo, equivalents, myName, myUrl,
 	const beforeAndDayMeeitngs = new Map([null, ...days].map((era) => [era, []]));
 	for (const meeting of allMeetings) {
 		const key = meeting.calendarStart ? Temporal.PlainDateTime.compare(meeting.calendarStart, dayInfo.monday.midnight) < 0 ? null : meeting.calendarDay : void 0;
-		if (isCalendarMeeting(meeting)) beforeAndDayMeeitngs.get(key)?.push(meetingCard({
-			kind: "calendar",
-			meeting,
-			headingLevel: 1,
-			repos
-		}));
-		else beforeAndDayMeeitngs.get(key)?.push(meetingCard({
+		if (isCalendarMeeting(meeting)) {
+			const alreadyHaveBookings = meetingsWithBookings.has(meeting);
+			beforeAndDayMeeitngs.get(key)?.push(meetingCard({
+				kind: "calendar",
+				meeting,
+				headingLevel: 1,
+				repos,
+				alreadyHaveBookings
+			}));
+		} else beforeAndDayMeeitngs.get(key)?.push(meetingCard({
 			kind: "meeting",
 			meeting,
 			headingLevel: 1,
@@ -541,9 +553,7 @@ function meetingCardHeader(args) {
 		case "tentative":
 			klasslist.push("state-tentative");
 			break;
-		case "invalid":
-			klasslist.push("nature-invalid");
-			break;
+		case "invalid": klasslist.push("nature-invalid");
 	}
 	const klasses = klasslist.length > 0 ? " " + klasslist.join(" ") : "";
 	const fullHeadingId = args.kind === "calendar" && args.seq ? ` id="${idFor(args.seq, "heading")}"` : "";
@@ -571,7 +581,7 @@ function meetingCard(args) {
 				headingLevel,
 				seq
 			});
-			tail = newIssueForm(repos, seq);
+			tail = newIssueForm(repos, seq, args.alreadyHaveBookings);
 		} else out += meetingCardHeader({
 			kind: "calendar",
 			meeting,
@@ -603,18 +613,22 @@ function meetingCard(args) {
 	if (args.kind !== "calendar") out += notes(args.meeting);
 	return out + tail + "</div>";
 }
-function newIssueForm(repos, seq) {
+function newIssueForm(repos, seq, alreadyHaveBookings) {
 	const SEP = " :: ";
 	const buttonId = idFor(seq, "button");
 	const repoId = idFor(seq, "repo");
+	const already = alreadyHaveBookings ? `<span id="${idFor(seq, "booking")}"><strong>Note:</strong> This meeting already has at least one planned attendance (check the following cards).</span>` : "";
 	return `
 		<form>
 			<p>
 				<label id="${repoId}">Repo: <select>${repos.reduce((out, [repo, label]) => out + `<option data-repo="${repo}" data-label="${label}">${repo}${SEP}${label.length ? label : "(no label)"}</option>`, "")}</select></label>
 			</p>
-			<button id="${buttonId}"
-			  aria-labelledby="${buttonId} ${idFor(seq, "heading")}"
-			  aria-describedby="${repoId}">Plan to attend</button>
+			<p>
+				<button id="${buttonId}"
+				  aria-labelledby="${buttonId} ${idFor(seq, "heading")}"
+				  aria-describedby="${idFor(seq, "booking")} ${repoId}">Plan to attend</button>
+				${already}
+			</p>
 		</form>`;
 }
 function clashingMeetings(pcm, kind, combined) {
@@ -818,7 +832,6 @@ function processSchedule(dayInfo, equivalents, alts, validMeetings) {
 					case "near":
 						addClashingMeeting(peopleNearlyClashingMeetings, person, meeting, other);
 						haveNearlyClashing = true;
-						break;
 				}
 			}
 			if (Temporal.PlainDateTime.compare(meeting.start, endOfLastMeeting) > 0) personDayGaps.get(person)?.get(day)?.push({
@@ -917,13 +930,17 @@ function makeEquivalents(combine) {
 	return equivalents;
 }
 function generateMeetingList({ dayInfo, equivalents, issues, repos }) {
-	return makeMeetingListPage({
-		allMeetings: calendarMeetingsZipped(issues.reduce((acc, issue) => {
-			const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue);
-			if (meeting.id) if (acc[meeting.id]) acc[meeting.id].push(meeting);
+	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(issues.reduce((acc, issue) => {
+		const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue);
+		if (meeting.id) {
+			if (acc[meeting.id]) acc[meeting.id].push(meeting);
 			else acc[meeting.id] = [meeting];
-			return acc;
-		}, {})),
+		}
+		return acc;
+	}, {}));
+	return makeMeetingListPage({
+		allMeetings,
+		meetingsWithBookings,
 		dayInfo,
 		equivalents,
 		myName: MY_NAME,

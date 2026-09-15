@@ -14,7 +14,7 @@ describe('Converting all events', () => {
 	setUp()
 
 	test('The correct number of events are got, and converted', () => {
-		expect(calendarMeetingsZipped().length).toBe(209)
+		expect(calendarMeetingsZipped().allMeetings.length).toBe(209)
 	})
 })
 

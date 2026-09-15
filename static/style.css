@@ -131,6 +131,13 @@ dl {
 	padding-block: 0;
 }
 
+.meeting>form>:last-child {
+	display: grid;
+	grid-template-columns: max-content auto;
+	align-items: start;
+	gap: 0.5em;
+}
+
 dt {
 	font-weight: bold;
 }

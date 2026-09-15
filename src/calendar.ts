@@ -64,14 +64,17 @@ export function calendarMeeting(uid: string): CalendarMeeting | CalendarMeetingN
 }
 
 export function calendarMeetingsZipped(plannedMeetings: Record<string, Partial<Meeting>[]> = {}) {
-	return Object.values(icsEvents).reduce((acc: (CalendarMeeting | Partial<Meeting>)[], icsEvent) => {
+	const meetingsWithBookings = new Set<CalendarMeeting>
+	const allMeetings = Object.values(icsEvents).reduce((acc: (CalendarMeeting | Partial<Meeting>)[], icsEvent) => {
+		const calendarMeeting = calendarInfoFrom(icsEvent)
+		acc.push(calendarMeeting)
 		if (icsEvent.uid in plannedMeetings) {
 			acc.push(...plannedMeetings[icsEvent.uid]!)
-		} else {
-			acc.push(calendarInfoFrom(icsEvent))
+			meetingsWithBookings.add(calendarMeeting)
 		}
 		return acc
 	}, [])
+	return { allMeetings, meetingsWithBookings }
 }
 
 function getSchedule(scheduleUrl: string, path: string) {

@@ -116,10 +116,11 @@ function generateMeetingList({
 			return acc
 		}, {})
 
-	const allMeetings = calendarMeetingsZipped(plannedMeetings)
+	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(plannedMeetings)
 
 	const html = makeMeetingListPage({
 		allMeetings,
+		meetingsWithBookings,
 		dayInfo,
 		equivalents,
 		myName: MY_NAME,

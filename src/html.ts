@@ -18,16 +18,32 @@ import type { RepoSpec } from '../tsh.ts'
 import type { TpacDayInfo } from './tpacs.ts'
 
 type MeetingCardArgs =
-	| { kind: 'calendar', meeting: CalendarMeeting,
-			headingLevel: number, repos: RepoSpec[] }
-	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
-		  headingLevel: number, equivalents: CombineNames }
+	| {
+			kind: 'calendar',
+			meeting: CalendarMeeting,
+			headingLevel: number,
+			repos: RepoSpec[],
+			alreadyHaveBookings: boolean
+		}
+	| {
+			kind: 'meeting',
+			meeting: Meeting | Partial<Meeting>,
+		  headingLevel: number,
+		  equivalents: CombineNames
+		}
 
 type MeetingCardHeaderArgs =
-	| { kind: 'calendar', meeting: CalendarMeeting,
-		  headingLevel: number, seq?: number } // TODO: when is seq not used? cancelled meetings?
-	| { kind: 'meeting',  meeting: Meeting | Partial<Meeting>,
-		  headingLevel: number }
+	| {
+			kind: 'calendar',
+			meeting: CalendarMeeting,
+		  headingLevel: number,
+		  seq?: number
+		} // TODO: when is seq not used? cancelled meetings?
+	| {
+			kind: 'meeting',
+			meeting: Meeting | Partial<Meeting>,
+		  headingLevel: number
+		}
 
 interface BaseOutputInfo {
 	equivalents: CombineNames
@@ -39,6 +55,7 @@ interface BaseOutputInfo {
 // TODO: get DayMeetings into this?
 interface MeetingListPageOutputInfo extends BaseOutputInfo {
 	allMeetings: (CalendarMeeting | Partial<Meeting>)[]
+	meetingsWithBookings: Set<CalendarMeeting>
 	dayInfo: TpacDayInfo
 	repos: RepoSpec[]
 	script: string
@@ -89,6 +106,7 @@ let headingCounter = 0
 
 export function makeMeetingListPage({
 	allMeetings,
+	meetingsWithBookings,
 	dayInfo,
 	equivalents,
 	myName,
@@ -132,8 +150,9 @@ export function makeMeetingListPage({
 
 		// FIXME: Can we get rid of both isCalendarMeeting() and the 'kind' parameter?
 		if (isCalendarMeeting(meeting)) {
+			const alreadyHaveBookings = meetingsWithBookings.has(meeting)
 			beforeAndDayMeeitngs.get(key)?.push(
-				meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos }))
+				meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos, alreadyHaveBookings }))
 		} else {
 			beforeAndDayMeeitngs.get(key)?.push(
 				meetingCard({ kind: 'meeting', meeting, headingLevel: 1, equivalents }))
@@ -535,7 +554,7 @@ function meetingCard(args: MeetingCardArgs): string {
 		if (meeting.status !== 'cancelled') {
 			const seq = headingCounter++
 			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel, seq })
-			tail = newIssueForm(repos, seq)
+			tail = newIssueForm(repos, seq, args.alreadyHaveBookings)
 		} else {
 			out += meetingCardHeader({ kind: 'calendar', meeting, headingLevel })
 		}
@@ -575,10 +594,14 @@ function meetingCard(args: MeetingCardArgs): string {
 	return out + tail + '</div>'
 }
 
-function newIssueForm(repos: RepoSpec[], seq: number) {
+function newIssueForm(repos: RepoSpec[], seq: number, alreadyHaveBookings: boolean) {
 	const SEP = ' :: '
 	const buttonId = idFor(seq, 'button')
 	const repoId = idFor(seq, 'repo')
+
+	const already = alreadyHaveBookings
+		? `<span id="${idFor(seq, 'booking')}"><strong>Note:</strong> This meeting already has at least one planned attendance (check the following cards).</span>`
+		: ''
 
 	const options = repos.reduce((out, [ repo, label ]) =>
 		out + `<option data-repo="${repo}" data-label="${label}">${repo}${SEP}${label.length ? label : '(no label)'}</option>`
@@ -589,9 +612,12 @@ function newIssueForm(repos: RepoSpec[], seq: number) {
 			<p>
 				<label id="${repoId}">Repo: <select>${options}</select></label>
 			</p>
-			<button id="${buttonId}"
-			  aria-labelledby="${buttonId} ${idFor(seq, 'heading')}"
-			  aria-describedby="${repoId}">Plan to attend</button>
+			<p>
+				<button id="${buttonId}"
+				  aria-labelledby="${buttonId} ${idFor(seq, 'heading')}"
+				  aria-describedby="${idFor(seq, 'booking')} ${repoId}">Plan to attend</button>
+				${already}
+			</p>
 		</form>`
 }
 
@@ -681,6 +707,6 @@ function alternativesOrNot(m: Meeting): string {
 	return ''
 }
 
-function idFor(num: number, kind: 'heading' | 'button' | 'repo') {
+function idFor(num: number, kind: 'heading' | 'button' | 'repo' | 'booking') {
 	return `${kind}-${String(num)}`
 }
