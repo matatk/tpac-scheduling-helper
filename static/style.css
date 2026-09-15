@@ -68,7 +68,7 @@ ol.clashing li {
 	padding-inline: 1rem;
 }
 
-.meeting>hgroup {
+.meeting:not(.personal)>hgroup {
 	background-color: var(--accent-colour);
 	color: contrast-color(var(--accent-colour));
 	padding-block-end: 0.5rem;

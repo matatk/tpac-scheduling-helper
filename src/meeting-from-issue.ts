@@ -57,6 +57,7 @@ export default function meetingFromIssue(
 		start: bodyInfo.start,
 		tag: meetingCounter++,
 		title: issue.title,
+		personal: issue.labels.some(label => label.name === 'personal capacity'),
 	}
 }
 

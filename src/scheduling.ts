@@ -164,7 +164,9 @@ export default function processSchedule(
 	// Now we have been through all people, days, and meetings.
 	// We can figure out, for all meetings, whom else could attend instead of those assigned.
 	for (const meeting of validMeetings) {
-		meeting.alternatives.push(...alternatives(alts, personDayGaps, meeting))
+		if (!meeting.personal) {
+			meeting.alternatives.push(...alternatives(alts, personDayGaps, meeting))
+		}
 	}
 
 	// If multiple issues from the same repo reference the same meeting, they may be duplicates.
@@ -172,10 +174,16 @@ export default function processSchedule(
 	const repoPossibleDuplicates: RepoDuplicateMeetings = new Map()
 	for (const [ repo, meetings ] of repoMeetings) {
 		const grouped = Object.groupBy(meetings, meeting => meeting.calendarUrl)
-		const possibleDupes = Object.values(grouped).filter(group => group && group.length > 1)
-		if (possibleDupes.length > 0) {
+		// Disregard meeting attendances that have been flagged as being in a personal capacity.
+		// NOTE: Slightly naughty use of type guard? Only slightly.
+		const possibleDupeGroups = Object.values(grouped).filter((group): group is Meeting[] => {
+			if (group === undefined) return false
+			const numPersonal = group.reduce((acc, item) => item.personal ? acc + 1 : acc, 0)
+			return group.length - numPersonal > 1
+		})
+		if (possibleDupeGroups.length > 0) {
 			// TODO: the handling of undefined as a possibility seems a bit kludgy here
-			repoPossibleDuplicates.set(repo, possibleDupes.filter(v => !!v))
+			repoPossibleDuplicates.set(repo, possibleDupeGroups)
 		}
 	}
 

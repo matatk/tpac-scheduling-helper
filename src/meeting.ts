@@ -23,6 +23,7 @@ export interface Meeting extends CalendarMeeting {
 	issueUrl: string
 	alternatives: string[]
 	notes?: string
+	personal?: boolean
 }
 
 interface CategorisedMeetings {

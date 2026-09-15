@@ -21,13 +21,18 @@ import type { CombineNames } from './src/scheduling.ts'
 import type { GhIssue } from './src/query-issues.ts'
 import type { Meeting } from './src/meeting.ts'
 
+export interface RepoSpec {
+	repo: string
+	label: string
+	personal?: string // FIXME: make always
+}
+
 const MY_NAME = 'TPAC scheduling helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
 const STYLE_FILE = path.join('static', 'style.css')
 const SCRIPT_FILE = path.join('static', 'create-issue.js')
 
 type RepoSpecRaw = [string] | [string, string] // [ repo ] | [ repo, label ]
-export type RepoSpec = [string, string]  // [ repo, label ]
 type CombineNamesArgs = [string, string][]
 
 interface BaseArgs {
@@ -73,7 +78,7 @@ function getIssues(gh: string, repos: RepoSpec[], queryResult?: string) {
 		issues.push(...JSON.parse(fs.readFileSync(queryResult, 'utf-8')) as unknown as GhIssue[])
 	} else {
 		console.log('Querying repo(s) with gh...')
-		for (const [ repo, label ] of repos) {
+		for (const { repo, label } of repos) {
 			try {
 				issues.push(...queryIssues(gh, repo, label))
 			} catch (err) {
@@ -328,9 +333,9 @@ function main() {
 
 	const repos = (argv as ProgArgs).repo?.reduce((acc: RepoSpec[], cur) => {
 		if (cur.length == 2) {
-			acc.push(cur)
+			acc.push({ repo: cur[0], label: cur[1] })
 		} else {
-			acc.push([ ...cur, argv.label ?? '' ])
+			acc.push({ repo: cur[0], label: argv.label ?? '' })
 		}
 		return acc
 	}, []) ?? []

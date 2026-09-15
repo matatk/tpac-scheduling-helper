@@ -524,7 +524,7 @@ function inlineSummary(meeting, includeDay, combned, skipName) {
 	const realStart = meeting.match === "mismatch" ? meeting.calendarStart : meeting.start;
 	const realEnd = meeting.match === "mismatch" ? meeting.calendarEnd : meeting.end;
 	const movedMaybe = meeting.match === "mismatch" ? " (moved)" : "";
-	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.room}${nameHtml}`;
+	return `${meeting.personal ? "(personal) " : ""}<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.room}${nameHtml}`;
 }
 function htmlEscapeThatNeedsImproving(text) {
 	return text ? text.replace("<", "&lt;").replace(">", "&gt;") : UNKNOWN_PROPERTY;
@@ -555,14 +555,16 @@ function meetingCardHeader(args) {
 			break;
 		case "invalid": klasslist.push("nature-invalid");
 	}
-	const klasses = klasslist.length > 0 ? " " + klasslist.join(" ") : "";
 	const fullHeadingId = args.kind === "calendar" && args.seq ? ` id="${idFor(args.seq, "heading")}"` : "";
 	const tag = args.kind !== "calendar" && args.meeting.id ? ` id="${String(args.meeting.tag)}"` : "";
 	const vitals = args.kind !== "calendar" ? `<p><i>${htmlEscapeThatNeedsImproving(args.meeting.title)}</i> <span>from: ${args.meeting.issueUrl ? repoFromIssueUrl(args.meeting.issueUrl) ?? UNKNOWN_PROPERTY : UNKNOWN_PROPERTY}</span></p>` : "";
-	return `<div${tag} class="meeting${klasses}">
+	const personal = args.kind !== "calendar" && args.meeting.personal ? "<p><i>Personal attendance</i></p>" : "";
+	if (personal) klasslist.push("personal");
+	return `<div${tag} class="meeting${klasslist.length > 0 ? " " + klasslist.join(" ") : ""}">
 		<hgroup>
 			<h${String(args.headingLevel)}${fullHeadingId}>${htmlEscapeThatNeedsImproving(args.meeting.calendarTitle)}</h${String(args.headingLevel)}>
 			${vitals}
+			${personal}
 		</hgroup>
 		<dl>
 			<dt>Kind</dt><dd>${args.meeting.kind ? kindPretty[args.meeting.kind] : UNKNOWN_PROPERTY}</dd>
@@ -621,7 +623,7 @@ function newIssueForm(repos, seq, alreadyHaveBookings) {
 	return `
 		<form>
 			<p>
-				<label id="${repoId}">Repo: <select>${repos.reduce((out, [repo, label]) => out + `<option data-repo="${repo}" data-label="${label}">${repo}${SEP}${label.length ? label : "(no label)"}</option>`, "")}</select></label>
+				<label id="${repoId}">Repo: <select>${repos.reduce((out, { repo, label }) => out + `<option data-repo="${repo}" data-label="${label}">${repo}${SEP}${label.length ? label : "(no label)"}</option>`, "")}</select></label>
 			</p>
 			<p>
 				<button id="${buttonId}"
@@ -718,7 +720,8 @@ function meetingFromIssue(dayInfo, getter, issue) {
 		notes: bodyInfo.notes,
 		start: bodyInfo.start,
 		tag: meetingCounter++,
-		title: issue.title
+		title: issue.title,
+		personal: issue.labels.some((label) => label.name === "personal capacity")
 	};
 }
 function parseBodyInfo(dayInfo, body) {
@@ -845,12 +848,16 @@ function processSchedule(dayInfo, equivalents, alts, validMeetings) {
 			end: workingDay.end
 		});
 	}
-	for (const meeting of validMeetings) meeting.alternatives.push(...alternatives(alts, personDayGaps, meeting));
+	for (const meeting of validMeetings) if (!meeting.personal) meeting.alternatives.push(...alternatives(alts, personDayGaps, meeting));
 	const repoPossibleDuplicates = /* @__PURE__ */ new Map();
 	for (const [repo, meetings] of repoMeetings) {
 		const grouped = Object.groupBy(meetings, (meeting) => meeting.calendarUrl);
-		const possibleDupes = Object.values(grouped).filter((group) => group && group.length > 1);
-		if (possibleDupes.length > 0) repoPossibleDuplicates.set(repo, possibleDupes.filter((v) => !!v));
+		const possibleDupeGroups = Object.values(grouped).filter((group) => {
+			if (group === void 0) return false;
+			const numPersonal = group.reduce((acc, item) => item.personal ? acc + 1 : acc, 0);
+			return group.length - numPersonal > 1;
+		});
+		if (possibleDupeGroups.length > 0) repoPossibleDuplicates.set(repo, possibleDupeGroups);
 	}
 	return {
 		repoPossibleDuplicates,
@@ -872,7 +879,7 @@ function queryIssues(gh, repo, label) {
 		"issue",
 		"list",
 		"--json",
-		"assignees,body,title,url",
+		"assignees,body,title,url,labels",
 		"--limit",
 		"999"
 	];
@@ -915,7 +922,7 @@ function getIssues(gh, repos, queryResult) {
 		issues.push(...JSON.parse(fs.readFileSync(queryResult, "utf-8")));
 	} else {
 		console.log("Querying repo(s) with gh...");
-		for (const [repo, label] of repos) try {
+		for (const { repo, label } of repos) try {
 			issues.push(...queryIssues(gh, repo, label));
 		} catch (err) {
 			errorOut(err);
@@ -1074,8 +1081,14 @@ function getArgv() {
 function main() {
 	const argv = getArgv();
 	const repos = argv.repo?.reduce((acc, cur) => {
-		if (cur.length == 2) acc.push(cur);
-		else acc.push([...cur, argv.label ?? ""]);
+		if (cur.length == 2) acc.push({
+			repo: cur[0],
+			label: cur[1]
+		});
+		else acc.push({
+			repo: cur[0],
+			label: argv.label ?? ""
+		});
 		return acc;
 	}, []) ?? [];
 	const tpac = TPACs[argv.year];

@@ -499,7 +499,9 @@ function inlineSummary(meeting: Meeting, includeDay: boolean, combned: CombineNa
 	const movedMaybe = meeting.match === 'mismatch'
 		? ' (moved)'
 		: ''
-	return `<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.room}${nameHtml}`
+	const personal = meeting.personal ? '(personal) ' : ''
+
+	return `${personal}<a href="#${String(meeting.tag)}">${htmlEscapeThatNeedsImproving(meeting.calendarTitle)}</a>, <b>${maybeDay}${dtf(realStart)}&ndash;${dtf(realEnd)}${movedMaybe}</b>, ${meeting.room}${nameHtml}`
 }
 
 function htmlEscapeThatNeedsImproving(text?: string): string {
@@ -529,16 +531,19 @@ function meetingCardHeader(args: MeetingCardHeaderArgs): string {
 		}
 	}
 
-	const klasses = klasslist.length > 0 ? ' ' + klasslist.join(' ') : ''
-
 	const fullHeadingId = args.kind === 'calendar' && args.seq ? ` id="${idFor(args.seq, 'heading')}"` : ''
 	const tag = args.kind !== 'calendar' && args.meeting.id ? ` id="${String(args.meeting.tag)}"` : ''
 	const vitals = args.kind !== 'calendar' ? `<p><i>${htmlEscapeThatNeedsImproving(args.meeting.title)}</i> <span>from: ${args.meeting.issueUrl ? repoFromIssueUrl(args.meeting.issueUrl) ?? UNKNOWN_PROPERTY : UNKNOWN_PROPERTY}</span></p>` : ''
+	const personal = args.kind !== 'calendar' && args.meeting.personal ? '<p><i>Personal attendance</i></p>' : ''
+
+	if (personal) klasslist.push('personal')
+	const klasses = klasslist.length > 0 ? ' ' + klasslist.join(' ') : ''
 
 	return `<div${tag} class="meeting${klasses}">
 		<hgroup>
 			<h${String(args.headingLevel)}${fullHeadingId}>${htmlEscapeThatNeedsImproving(args.meeting.calendarTitle)}</h${String(args.headingLevel)}>
 			${vitals}
+			${personal}
 		</hgroup>
 		<dl>
 			<dt>Kind</dt><dd>${args.meeting.kind ? kindPretty[args.meeting.kind] : UNKNOWN_PROPERTY}</dd>
@@ -603,7 +608,7 @@ function newIssueForm(repos: RepoSpec[], seq: number, alreadyHaveBookings: boole
 		? `<span id="${idFor(seq, 'booking')}"><strong>Note:</strong> This meeting already has at least one planned attendance (check the following cards).</span>`
 		: ''
 
-	const options = repos.reduce((out, [ repo, label ]) =>
+	const options = repos.reduce((out, { repo, label }) =>
 		out + `<option data-repo="${repo}" data-label="${label}">${repo}${SEP}${label.length ? label : '(no label)'}</option>`
 	, '')
 

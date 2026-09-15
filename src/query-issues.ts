@@ -5,6 +5,7 @@ export interface GhIssue {
 	body: string
 	title: string
 	url: string
+	labels: GhLabel[]
 }
 
 interface GhAssignee {
@@ -14,8 +15,15 @@ interface GhAssignee {
 	databaseId: number
 }
 
+interface GhLabel {
+	id: string
+	name: string
+	description: string
+	color: string
+}
+
 export default function queryIssues(gh: string, repo: string, label?: string): GhIssue[] {
-	const args = [ '--repo', repo, 'issue', 'list', '--json', 'assignees,body,title,url', '--limit', '999' ]
+	const args = [ '--repo', repo, 'issue', 'list', '--json', 'assignees,body,title,url,labels', '--limit', '999' ]
 	if (label) args.push('--label', label)
 	console.log(gh, args.join(' '))
 	const child = spawnSync(gh, args)
