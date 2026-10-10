@@ -174,6 +174,40 @@ function calendarInfoFrom(event) {
 	};
 }
 //#endregion
+//#region src/query-issues.ts
+function doIt(verbose, gh, args, label, processor) {
+	if (label) args.push("--label", label);
+	if (verbose) console.log(gh, args.join(" "));
+	const child = spawnSync(gh, args);
+	if (child.error || child.stderr.length > 0) throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`);
+	try {
+		if (processor) return processor(child.stdout.toString());
+		else return child.stdout.toString();
+	} catch (err) {
+		throw new Error("Parsing GitHub API result: " + String(err instanceof Error ? err.message : err), { cause: err });
+	}
+}
+function queryIssues(gh, repo, label) {
+	return doIt(true, gh, [
+		"--repo",
+		repo,
+		"issue",
+		"list",
+		"--json",
+		"assignees,body,title,url,labels",
+		"--limit",
+		"999"
+	], label, JSON.parse);
+}
+function getCollaborators(gh, repo) {
+	return doIt(false, gh, [
+		"api",
+		`repos/${repo}/collaborators`,
+		"--jq",
+		"[ .[].login ] | join(\" \")"
+	]);
+}
+//#endregion
 //#region src/sort.ts
 function sort(activities) {
 	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start));
@@ -871,29 +905,6 @@ function processSchedule(dayInfo, equivalents, alts, validMeetings) {
 	};
 }
 //#endregion
-//#region src/query-issues.ts
-function queryIssues(gh, repo, label) {
-	const args = [
-		"--repo",
-		repo,
-		"issue",
-		"list",
-		"--json",
-		"assignees,body,title,url,labels",
-		"--limit",
-		"999"
-	];
-	if (label) args.push("--label", label);
-	console.log(gh, args.join(" "));
-	const child = spawnSync(gh, args);
-	if (child.error || child.stderr.length > 0) throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`);
-	try {
-		return JSON.parse(child.stdout.toString());
-	} catch (err) {
-		throw new Error("Parsing GitHub API result: " + String(err instanceof Error ? err.message : err), { cause: err });
-	}
-}
-//#endregion
 //#region tsh.ts
 const MY_NAME = "TPAC scheduling helper";
 const MY_URL = "https://github.com/matatk/tpac-scheduling-helper";
@@ -980,13 +991,24 @@ function doScheduling({ alternatives, dayInfo, equivalents, issues }) {
 		myUrl: MY_URL
 	});
 }
-function getArgv() {
-	return yargs(hideBin(process.argv)).parserConfiguration({ "flatten-duplicate-arrays": false }).options({
+function main() {
+	return yargs(hideBin(process.argv)).parserConfiguration({ "flatten-duplicate-arrays": false }).option("gh", {
+		type: "string",
+		description: "Path to/name of gh binary.\n",
+		default: "gh"
+	}).command("collaborators", "make a get HTTP request", (yargs) => yargs.option("repo-path", {
+		alias: "p",
+		type: "string",
+		description: "GitHub owner and repo name, separated with forward-slash.\n",
+		example: "w3ctag/design-reviews",
+		demandOption: true
+	}), (argv) => {
+		console.log(getCollaborators(argv.gh, argv.repoPath).trim());
+	}).command("$0", "moo", (yargs) => yargs.options({
 		calendar: {
 			alias: "c",
 			type: "string",
-			description: "Path to the local meetings schedule ICS file. It will be downloaded from w3.org (according to the --year option's value) if it doesn't exist.\n",
-			required: true
+			description: "Path to the local meetings schedule ICS file. It will be downloaded from w3.org (according to the --year option's value) if it doesn't exist.\n"
 		},
 		"output-plan": {
 			alias: "p",
@@ -1025,16 +1047,12 @@ function getArgv() {
 			type: "string",
 			description: "Path to local JSON file to save all issues returned from all GitHub API query responses.\n"
 		},
-		gh: {
-			type: "string",
-			description: "Path to/name of gh binary.\n",
-			default: "gh"
-		},
 		alternatives: {
 			alias: "a",
 			type: "string",
 			array: true,
-			description: "People (rather, their GitHub login names) who you want to consider as possible alternatives to attend meetings in the event of clashes. By default, all people referenced by the found issues will be considered as possible alternative meeting attendees.\n\nYou might want to use this if you run the tool from the perspective of different groups, e.g. a WG, or those of your colleagues who are attending TPAC.\n"
+			description: "People (rather, their GitHub login names) who you want to consider as possible alternatives to attend meetings in the event of clashes. By default, all people referenced by the found issues will be considered as possible alternative meeting attendees.\n\nYou might want to use this if you run the tool from the perspective of different groups, e.g. a WG, or those of your colleagues who are attending TPAC.\n",
+			default: []
 		},
 		combine: {
 			alias: "C",
@@ -1056,9 +1074,6 @@ function getArgv() {
 		if (!args.repo.every((value) => Array.isArray(value) && (value.length === 1 || value.length === 2))) errorOut("Every 'repo' option value must be either a GitHub repo, OR a GitHub repo and issue label to use when querying that repo. The values specified were:", args.repo);
 		return true;
 	}).check((args) => {
-		args.alternatives ??= [];
-		return true;
-	}).check((args) => {
 		if (!args.combine) return true;
 		if (!args.combine.every((value) => Array.isArray(value) && value.length === 2)) errorOut("Every 'equivalent' option value must be a pair of two usernames to consider equal. The values specified were:", args.combine);
 		return true;
@@ -1076,38 +1091,37 @@ function getArgv() {
 		"save-result",
 		"query-result",
 		"year"
-	], "Testing and debugging options:").group(["help", "version"], "Workhorses:").strict().parseSync();
-}
-function main() {
-	const argv = getArgv();
-	const repos = argv.repo?.reduce((acc, cur) => {
-		if (cur.length == 2) acc.push({
-			repo: cur[0],
-			label: cur[1]
-		});
-		else acc.push({
-			repo: cur[0],
-			label: argv.label ?? ""
-		});
-		return acc;
-	}, []) ?? [];
-	const tpac = TPACs[argv.year];
-	const equivalents = makeEquivalents(argv.combine);
-	const issues = getIssues(argv.gh, repos, argv.queryResult);
-	calendarInit(tpac.icsUrl, argv.calendar);
-	if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
-		dayInfo: tpac.days,
-		equivalents,
-		issues,
-		repos
-	}));
-	if (argv.outputSchedule) write(argv.outputSchedule, "scheduling info", doScheduling({
-		alternatives: argv.alternatives ?? [],
-		dayInfo: tpac.days,
-		equivalents,
-		issues
-	}));
-	if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));
+	], "Testing and debugging options:").group(["help", "version"], "Workhorses:"), (argv) => {
+		console.log(argv);
+		const repos = argv.repo?.reduce((acc, cur) => {
+			if (cur.length == 2) acc.push({
+				repo: cur[0],
+				label: cur[1]
+			});
+			else acc.push({
+				repo: cur[0],
+				label: argv.label ?? ""
+			});
+			return acc;
+		}, []) ?? [];
+		const tpac = TPACs[argv.year];
+		const equivalents = makeEquivalents(argv.combine);
+		const issues = getIssues(argv.gh, repos, argv.queryResult);
+		calendarInit(tpac.icsUrl, argv.calendar);
+		if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
+			dayInfo: tpac.days,
+			equivalents,
+			issues,
+			repos
+		}));
+		if (argv.outputSchedule) write(argv.outputSchedule, "scheduling info", doScheduling({
+			alternatives: argv.alternatives ?? [],
+			dayInfo: tpac.days,
+			equivalents,
+			issues
+		}));
+		if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));
+	}).strict().parseSync();
 }
 main();
 //#endregion
