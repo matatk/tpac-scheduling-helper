@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// FIXME: gh option string looks ugly in help output for 'members' command becuase of the trailing \n
+// TODO: Pass an option for 'use only the first repo given in the planning page' or do that and alternatives completely differently?
 // FIXME: Now that we're using Temporal.PlainDateTime for the meeting times, detection of moved meetings should be a lot simpler. Probably good to still keep the day around becuase it helps UX having the day name.
 // FIXME: include an option to ignore closed issues? Or do so by default and include one to look at closed issues?
 // TODO: Should the tool really include the overridden names in its output, as mentioned in the README?
@@ -10,7 +12,7 @@ import yargs from 'yargs'
 
 import TPACs, { tpacYears } from './src/tpacs.ts'
 import { calendarInit, calendarMeeting, calendarMeetingsZipped } from './src/calendar.ts'
-import { getCollaborators, queryIssues } from './src/query-issues.ts'
+import { getMembers, queryIssues } from './src/query-issues.ts'
 import { makeMeetingListPage, makeSchedulingPage } from './src/html.ts'
 import { categoriseMeetings } from './src/meeting.ts'
 import meetingFromIssue from './src/meeting-from-issue.ts'
@@ -360,18 +362,31 @@ function main() {
 				}
 			})
 		.command(
-			'collaborators',
+			'members',
 			'Query and print the list of GitHub usernames that have write access to a given repo',
 			yargs => yargs
-				.option('repo-path', {
-					alias: 'p',
-					type: 'string',
-					description: 'GitHub owner and repo name, separated with forward-slash.\n',
-					example: 'w3ctag/design-reviews',
-					demandOption: true,
+				.options({
+					org: {
+						alias: 'o',
+						type: 'string',
+						description: 'GitHub organisation. E.g. w3c',
+						demandOption: true,
+					},
+					repo: {
+						alias: 'r',
+						type: 'string',
+						description: 'GitHub repo name. E.g. apa-tpac-meetings',
+						demandOption: true,
+					},
+					all: {
+						alias: 'a',
+						type: 'boolean',
+						description: 'Fetch all members of all teams associated with the repository (try this only if the script cannot find an obvious single members team).',
+						default: false,
+					},
 				}),
 			argv => {
-				console.log(getCollaborators(argv.gh, argv.repoPath).trim())
+				getMembers(argv.gh, argv.org, argv.repo, argv.all)
 			})
 		.strict()
 		.parseSync()

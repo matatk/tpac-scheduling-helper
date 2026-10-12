@@ -34,7 +34,7 @@ function dayThings<T extends Meeting | Gap>(): Map<Day, T[]> {
 	return new Map(days.map(day => [ day, [] ]))
 }
 
-function alternatives(
+function alternativeAttendees(
 	possibleAlternatives: string[],
 	personDayGaps: PersonDayGaps,
 	meeting: Meeting,
@@ -77,7 +77,7 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 export default function processSchedule(
 	dayInfo: TpacDayInfo,
 	equivalents: CombineNames,
-	alts: string[],
+	alternatives: string[],
 	validMeetings: Meeting[],
 ): ScheduleResult {
 	const dayMeetings: DayMeetings = dayThings<Meeting>()
@@ -90,6 +90,7 @@ export default function processSchedule(
 	for (const meeting of validMeetings) {
 		for (const name of meeting.names) {
 			const normalisedName = equivalents.get(name) ?? name
+			if (alternatives.length > 0 && !alternatives.includes(normalisedName)) continue
 
 			if (!personDayMeetings.has(normalisedName)) {
 				personDayMeetings.set(normalisedName, dayThings())
@@ -165,7 +166,7 @@ export default function processSchedule(
 	// We can figure out, for all meetings, whom else could attend instead of those assigned.
 	for (const meeting of validMeetings) {
 		if (!meeting.personal) {
-			meeting.alternatives.push(...alternatives(alts, personDayGaps, meeting))
+			meeting.alternatives.push(...alternativeAttendees(alternatives, personDayGaps, meeting))
 		}
 	}
 

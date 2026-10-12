@@ -175,20 +175,20 @@ function calendarInfoFrom(event) {
 }
 //#endregion
 //#region src/query-issues.ts
-function doIt(verbose, gh, args, label, processor) {
+function doIt(gh, args, label, processor) {
 	if (label) args.push("--label", label);
-	if (verbose) console.log(gh, args.join(" "));
+	console.log(gh, args.join(" "));
 	const child = spawnSync(gh, args);
 	if (child.error || child.stderr.length > 0) throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`);
 	try {
-		if (processor) return processor(child.stdout.toString());
-		else return child.stdout.toString();
+		const basic = child.stdout.toString().trim();
+		return processor ? processor(basic) : basic;
 	} catch (err) {
 		throw new Error("Parsing GitHub API result: " + String(err instanceof Error ? err.message : err), { cause: err });
 	}
 }
 function queryIssues(gh, repo, label) {
-	return doIt(true, gh, [
+	return doIt(gh, [
 		"--repo",
 		repo,
 		"issue",
@@ -199,13 +199,45 @@ function queryIssues(gh, repo, label) {
 		"999"
 	], label, JSON.parse);
 }
-function getCollaborators(gh, repo) {
-	return doIt(false, gh, [
+function getMembers(gh, org, repo, all) {
+	let teams;
+	const getTeams = [
 		"api",
-		`repos/${repo}/collaborators`,
+		"--paginate",
+		`repos/${org}/${repo}/teams`
+	];
+	const jqScript = "[ .[].login ] | join(\" \")";
+	const getMembers = (team, quoteJq = false) => [
+		"api",
+		"--paginate",
+		`orgs/${org}/teams/${team}/members`,
 		"--jq",
-		"[ .[].login ] | join(\" \")"
-	]);
+		quoteJq ? `'${jqScript}'` : jqScript
+	];
+	try {
+		teams = doIt(gh, getTeams, void 0, JSON.parse).map((team) => team.slug);
+	} catch (err) {
+		console.error("Unable to get teams list from GitHub API; you may not have permission.", err);
+		return;
+	}
+	console.log("Found teams", teams);
+	const candidates = teams.filter((team) => team.includes("members"));
+	const likely = candidates.length === 1 ? candidates[0] : null;
+	if (all) {
+		console.log("Getting members from all teams associated with the repo...");
+		const allMembers = [];
+		for (const team of teams) allMembers.push(...doIt(gh, getMembers(team)).split(" "));
+		console.log(`Found group members (all teams):\n\n${allMembers.sort().join(" ")}`);
+	} else if (likely) {
+		console.log("Found expcted team of repo members:", likely, "\n");
+		const members = doIt(gh, getMembers(likely)).split(" ").sort().join(" ");
+		console.log(`Found group members:\n\n${members}`);
+	} else {
+		console.error(`Couldn't find a likely team of members for repo: ${repo}.`);
+		console.log("You could try the following commands to list group members, if you have access...\n");
+		for (const team of teams) console.log(`${gh} ${getMembers(team, true).join(" ")}`);
+		console.log("\n...or, you could use the --all option to fetch all members from these teams.");
+	}
 }
 //#endregion
 //#region src/sort.ts
@@ -818,7 +850,7 @@ var ClashingMeetingsSet = class {
 function dayThings() {
 	return new Map(days.map((day) => [day, []]));
 }
-function alternatives(possibleAlternatives, personDayGaps, meeting) {
+function alternativeAttendees(possibleAlternatives, personDayGaps, meeting) {
 	const out = [];
 	for (const person of personDayGaps.keys()) {
 		if (meeting.names.includes(person)) continue;
@@ -835,7 +867,7 @@ function addClashingMeeting(map, name, m, o) {
 	if (!map.has(name)) map.set(name, new ClashingMeetingsSet());
 	map.get(name).add(m, o);
 }
-function processSchedule(dayInfo, equivalents, alts, validMeetings) {
+function processSchedule(dayInfo, equivalents, alternatives, validMeetings) {
 	const dayMeetings = dayThings();
 	const personDayMeetings = /* @__PURE__ */ new Map();
 	const personDayGaps = /* @__PURE__ */ new Map();
@@ -843,6 +875,7 @@ function processSchedule(dayInfo, equivalents, alts, validMeetings) {
 	for (const meeting of validMeetings) {
 		for (const name of meeting.names) {
 			const normalisedName = equivalents.get(name) ?? name;
+			if (alternatives.length > 0 && !alternatives.includes(normalisedName)) continue;
 			if (!personDayMeetings.has(normalisedName)) personDayMeetings.set(normalisedName, dayThings());
 			personDayMeetings.get(normalisedName)?.get(meeting.day)?.push(meeting);
 			if (!personDayGaps.has(normalisedName)) personDayGaps.set(normalisedName, dayThings());
@@ -882,7 +915,7 @@ function processSchedule(dayInfo, equivalents, alts, validMeetings) {
 			end: workingDay.end
 		});
 	}
-	for (const meeting of validMeetings) if (!meeting.personal) meeting.alternatives.push(...alternatives(alts, personDayGaps, meeting));
+	for (const meeting of validMeetings) if (!meeting.personal) meeting.alternatives.push(...alternativeAttendees(alternatives, personDayGaps, meeting));
 	const repoPossibleDuplicates = /* @__PURE__ */ new Map();
 	for (const [repo, meetings] of repoMeetings) {
 		const grouped = Object.groupBy(meetings, (meeting) => meeting.calendarUrl);
@@ -996,15 +1029,7 @@ function main() {
 		type: "string",
 		description: "Path to/name of gh binary.\n",
 		default: "gh"
-	}).command("collaborators", "make a get HTTP request", (yargs) => yargs.option("repo-path", {
-		alias: "p",
-		type: "string",
-		description: "GitHub owner and repo name, separated with forward-slash.\n",
-		example: "w3ctag/design-reviews",
-		demandOption: true
-	}), (argv) => {
-		console.log(getCollaborators(argv.gh, argv.repoPath).trim());
-	}).command("$0", "moo", (yargs) => yargs.options({
+	}).command("$0", "Carry out scheduling and/or generate the planning page", (yargs) => yargs.options({
 		calendar: {
 			alias: "c",
 			type: "string",
@@ -1063,7 +1088,7 @@ function main() {
 	}).coerce("repo", (repo) => {
 		if (Array.isArray(repo) && repo.length <= 2 && repo.every((value) => typeof value === "string")) return [repo];
 		return repo;
-	}).coerce("alternatives", Array.prototype.flat).coerce("combine", (combine) => {
+	}).coerce("alternatives", (alternatives) => Array.isArray(alternatives) ? alternatives : []).coerce("combine", (combine) => {
 		if (Array.isArray(combine) && combine.length === 2 && combine.every((value) => typeof value === "string")) return [combine];
 		return combine;
 	}).check((args) => {
@@ -1092,7 +1117,6 @@ function main() {
 		"query-result",
 		"year"
 	], "Testing and debugging options:").group(["help", "version"], "Workhorses:"), (argv) => {
-		console.log(argv);
 		const repos = argv.repo?.reduce((acc, cur) => {
 			if (cur.length == 2) acc.push({
 				repo: cur[0],
@@ -1121,6 +1145,27 @@ function main() {
 			issues
 		}));
 		if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));
+	}).command("members", "Query and print the list of GitHub usernames that have write access to a given repo", (yargs) => yargs.options({
+		org: {
+			alias: "o",
+			type: "string",
+			description: "GitHub organisation. E.g. w3c",
+			demandOption: true
+		},
+		repo: {
+			alias: "r",
+			type: "string",
+			description: "GitHub repo name. E.g. apa-tpac-meetings",
+			demandOption: true
+		},
+		all: {
+			alias: "a",
+			type: "boolean",
+			description: "Fetch all members of all teams associated with the repository (try this only if the script cannot find an obvious single members team).",
+			default: false
+		}
+	}), (argv) => {
+		getMembers(argv.gh, argv.org, argv.repo, argv.all);
 	}).strict().parseSync();
 }
 main();
