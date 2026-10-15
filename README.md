@@ -239,6 +239,18 @@ The tool will provide you with options for other people who may be free at the t
 
 If you're doing scheduling for a small group, but are referring to meeting issues across multiple repos, you may want to limit the suggestions for alternative people to attend meetings. You can do this via the `--alternative` option, which takes a list of GitHub usernames.
 
+#### Finding group members
+
+A `members` sub-command is provided to help you find out whom (GitHub username wise) is part of a particular group, via the GitHub teams associated with that repo. It may not always work for you, because of the permissions set-up for any given repo, but it might help you out.
+
+```sh
+tpac-scheduling-helper members --org w3c --repo apa-tpac-meetings
+```
+
+By default it'll try to find a team with 'members' in its name. You can ask it to fetch the members of all teams associated with the repo, if you wish.
+
+If you have the required access, you will be able to find out the same info via the `/settings/access` page for a given repo (e.g. <https://github.com/w3c/apa-tpac-meetings/settings/access>) but this tool outputs to the command line, which may be more helpful.
+
 ## Future plans
 
 * Further improvements in the output HTML.

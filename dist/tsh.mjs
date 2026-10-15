@@ -1145,7 +1145,7 @@ function main() {
 			issues
 		}));
 		if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));
-	}).command("members", "Query and print the list of GitHub usernames that have write access to a given repo", (yargs) => yargs.options({
+	}).command("members", "Try to find group members via their GitHub Team access to a given repo", (yargs) => yargs.options({
 		org: {
 			alias: "o",
 			type: "string",

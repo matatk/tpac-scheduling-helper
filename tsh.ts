@@ -363,7 +363,7 @@ function main() {
 			})
 		.command(
 			'members',
-			'Query and print the list of GitHub usernames that have write access to a given repo',
+			'Try to find group members via their GitHub Team access to a given repo',
 			yargs => yargs
 				.options({
 					org: {
