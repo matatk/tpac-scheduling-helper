@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// TODO: Add an option for personal capacity label (per repo)
+// TODO: personal capacity from what perspective? (ties into running it for a particular repo?)
+// TODO: option to say 'prefer first repo given' or similar - for both planning page <select> AND figuring out the PoV we are running from, for (1) discounting unassigned meetings and (2) somehow denoting personal capacity meetings.
+// TODO: IDEA: 'personal capacity' in one repo means 'not representing this group'. Currently something flagged as personal will not be taken into consideration in scheduling. But what we want is for it not to be taken into consideration for the group it's applied to (we could've done this the other way round and have one meeting flagged as 'the hat I am wering' - not sure if that's doable now, or we could have both? is that silly?)
 // FIXME: gh option string looks ugly in help output for 'members' command becuase of the trailing \n
 // TODO: Pass an option for 'use only the first repo given in the planning page' or do that and alternatives completely differently?
 // FIXME: Now that we're using Temporal.PlainDateTime for the meeting times, detection of moved meetings should be a lot simpler. Probably good to still keep the day around becuase it helps UX having the day name.
@@ -39,8 +43,8 @@ type CombineNamesArgs = [string, string][]
 
 interface BaseArgs {
 	alternatives: string[]
+	combine: CombineNames
 	dayInfo: TpacDayInfo
-	equivalents: CombineNames
 	issues: GhIssue[]
 }
 
@@ -102,15 +106,15 @@ function makeEquivalents(combine?: CombineNamesArgs): CombineNames {
 
 function generateMeetingList({
 	alternatives,
+	combine,
 	dayInfo,
-	equivalents,
 	issues,
 	repos,
 }: GenerateMeetingListArgs): string {
 	// NOTE: This includes invalid ones
 	const plannedMeetings = issues.reduce(
 		(acc: Record<string, Partial<Meeting>[]>, issue) => {
-			const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue)
+			const meeting = meetingFromIssue(dayInfo, calendarMeeting, combine, issue)
 			if (meeting.id && plannedByUs(alternatives, meeting)) {
 				if (acc[meeting.id]) {
 					acc[meeting.id]!.push(meeting)
@@ -127,7 +131,6 @@ function generateMeetingList({
 		allMeetings,
 		meetingsWithBookings,
 		dayInfo,
-		equivalents,
 		toolName: MY_NAME,
 		toolUrl: MY_URL,
 		repos,
@@ -140,11 +143,12 @@ function generateMeetingList({
 
 function doScheduling({
 	alternatives,
+	combine,
 	dayInfo,
-	equivalents,
 	issues,
 }: BaseArgs): string {
-	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, issue)))
+	// FIXME: DRY: Can we do this one level up to avoid duplicating work in the case that we are generating both pages?
+	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, combine, issue)))
 
 	// NOTE: These are returned having been filtered for relevance to the given alternative attendees, except for unassigned meetings, as we can't know in that case :-).
 	const {
@@ -165,7 +169,7 @@ function doScheduling({
 		haveDefinitelyClashing,
 		haveNearlyClashing,
 		personDayGaps,
-	} = processSchedule(dayInfo, equivalents, alternatives, validMeetings)
+	} = processSchedule(dayInfo, alternatives, validMeetings)
 
 	const html = makeSchedulingPage({
 		invalidMeetings,
@@ -177,7 +181,6 @@ function doScheduling({
 		peopleNearlyClashingMeetings,
 		peopleDefinitelyClashingMeetings,
 		personDayMeetings,
-		equivalents,
 		dayMeetings,
 		haveDefinitelyClashing,
 		haveNearlyClashing,
@@ -273,7 +276,7 @@ function main() {
 							&& combine.every(value => typeof value === 'string')) {
 						return [ combine ]
 					}
-					return combine as [string, string][]
+					return combine as CombineNamesArgs
 				})
 				.check(args => {
 					for (const [ one, other ] of [ [ 'repo', 'query-result' ], [ 'output-plan', 'output-schedule' ] ]) {
@@ -316,7 +319,7 @@ function main() {
 					| 'repo'
 					| 'year'
 				> & {
-					alternatives?: string[]
+					alternatives: string[]
 					combine?: CombineNamesArgs
 					outputPlan: string
 					outputSchedule: string
@@ -334,15 +337,16 @@ function main() {
 				}, []) ?? []
 
 				const tpac = TPACs[(argv as ProgArgs).year]
-				const equivalents = makeEquivalents((argv as ProgArgs).combine)
 				const issues = getIssues(argv.gh, repos, argv.queryResult)
 				calendarInit(tpac.icsUrl, argv.calendar)
 
+				const combine = makeEquivalents(argv.combine)
+
 				if (argv.outputPlan) {
 					write((argv as ProgArgs).outputPlan, 'meeting list', generateMeetingList({
-						alternatives: argv.alternatives,
+						alternatives: (argv as ProgArgs).alternatives,
+						combine,
 						dayInfo: tpac.days,
-						equivalents,
 						issues,
 						repos,
 					}))
@@ -350,9 +354,9 @@ function main() {
 
 				if (argv.outputSchedule) {
 					write((argv as ProgArgs).outputSchedule, 'scheduling info', doScheduling({
-						alternatives: (argv as ProgArgs).alternatives ?? [],
+						alternatives: (argv as ProgArgs).alternatives,
+						combine,
 						dayInfo: tpac.days,
-						equivalents,
 						issues,
 					}))
 				}

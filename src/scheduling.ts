@@ -76,7 +76,6 @@ function addClashingMeeting(map: Map<string, ClashingMeetingsSet>, name: string,
 //        TODO: should indicate moved/exact/subset in list items too?
 export default function processSchedule(
 	dayInfo: TpacDayInfo,
-	equivalents: CombineNames,
 	alternatives: string[],
 	validMeetings: Meeting[],
 ): ScheduleResult {
@@ -89,16 +88,15 @@ export default function processSchedule(
 	// Also track which meetings came from which repo (to flag possible duplicates).
 	for (const meeting of validMeetings) {
 		for (const name of meeting.names) {
-			const normalisedName = equivalents.get(name) ?? name
-			if (alternatives.length > 0 && !alternatives.includes(normalisedName)) continue
+			if (alternatives.length > 0 && !alternatives.includes(name)) continue
 
-			if (!personDayMeetings.has(normalisedName)) {
-				personDayMeetings.set(normalisedName, dayThings())
+			if (!personDayMeetings.has(name)) {
+				personDayMeetings.set(name, dayThings())
 			}
-			personDayMeetings.get(normalisedName)?.get(meeting.day)?.push(meeting)
+			personDayMeetings.get(name)?.get(meeting.day)?.push(meeting)
 
-			if (!personDayGaps.has(normalisedName)) {
-				personDayGaps.set(normalisedName, dayThings())
+			if (!personDayGaps.has(name)) {
+				personDayGaps.set(name, dayThings())
 			}
 		}
 

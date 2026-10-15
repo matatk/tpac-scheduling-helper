@@ -9,7 +9,7 @@ import { isMeeting } from './meeting.ts'
 import { repoFromIssueUrl } from './repo.ts'
 import sort from './sort.ts'
 
-import type { CombineNames, DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
+import type { DayMeetings, PersonClashingMeetings, PersonDayGaps, PersonDayMeetings, RepoDuplicateMeetings } from './scheduling.ts'
 import type { Gap, Match, Meeting } from './meeting.ts'
 import type { Kind, Status } from './kind-status.ts'
 import type { CalendarMeeting } from './calendar.ts'
@@ -29,7 +29,6 @@ type MeetingCardArgs =
 			kind: 'meeting',
 			meeting: Meeting | Partial<Meeting>,
 		  headingLevel: number,
-		  equivalents: CombineNames
 		}
 
 type MeetingCardHeaderArgs =
@@ -46,7 +45,6 @@ type MeetingCardHeaderArgs =
 		}
 
 interface BaseOutputInfo {
-	equivalents: CombineNames
 	toolName: string
 	toolUrl: string
 	style: string
@@ -108,7 +106,6 @@ export function makeMeetingListPage({
 	allMeetings,
 	meetingsWithBookings,
 	dayInfo,
-	equivalents,
 	toolName,
 	toolUrl,
 	repos,
@@ -153,7 +150,7 @@ export function makeMeetingListPage({
 				meetingCard({ kind: 'calendar', meeting, headingLevel: 1, repos, alreadyHaveBookings }))
 		} else {
 			beforeAndDayMeeitngs.get(key)?.push(
-				meetingCard({ kind: 'meeting', meeting, headingLevel: 1, equivalents }))
+				meetingCard({ kind: 'meeting', meeting, headingLevel: 1 }))
 		}
 	}
 
@@ -177,7 +174,6 @@ export function makeMeetingListPage({
 export function makeSchedulingPage({
 	cancelledMeetings,
 	dayMeetings,
-	equivalents,
 	haveDefinitelyClashing,
 	haveNearlyClashing,
 	invalidMeetings,
@@ -200,8 +196,8 @@ export function makeSchedulingPage({
 	const haveUnassigned = unassignedMeetings.length > 0
 	const haveCancelled = cancelledMeetings.length > 0
 
-	const plannedLinks = dayMeetingLinks(dayMeetings, equivalents)
-	const planned = dayMeetingCards(dayMeetings, equivalents)
+	const plannedLinks = dayMeetingLinks(dayMeetings)
+	const planned = dayMeetingCards(dayMeetings)
 
 	const navFilteringId = 'nav-and-filtering'
 	const navFilteringHeading = 'Navigation and filtering'
@@ -279,19 +275,19 @@ export function makeSchedulingPage({
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`
 
 	if (html) html += sectionWithLandmark(3, false, invalidId, invalidHeading,
-		meetingCards(4, invalidMeetings, equivalents))
+		meetingCards(4, invalidMeetings))
 	if (haveMoved) html += sectionWithLandmark(3, false, movedId, movedHeading,
-		meetingCards(4, movedMeetings, equivalents))
+		meetingCards(4, movedMeetings))
 	if (havePossibleDuplicates) html += sectionWithLandmark(3, true, possibleDuplicatesId, possibleDuplicatesHeading,
 		'<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p>' +
 		'<p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>' +
-		possibleDuplicates(repoPossibleDuplicates, equivalents))
+		possibleDuplicates(repoPossibleDuplicates))
 	if (haveUnassigned) html += sectionWithLandmark(3, true, unassignedId, unassignedHeading,
-		unassignedList(unassignedMeetings, equivalents))
+		unassignedList(unassignedMeetings))
 	if (haveMeetings) html += sectionWithLandmark(3, false, plannedId, plannedHeading,
 		sectionWithoutLandmark(4, true, 'Summary', plannedLinks) + planned)
 	if (haveCancelled) html += sectionWithLandmark(3, false, cancelledId, cancelledHeading,
-		meetingCards(4, cancelledMeetings, equivalents))
+		meetingCards(4, cancelledMeetings))
 
 	html += '</section>'
 
@@ -299,12 +295,12 @@ export function makeSchedulingPage({
 		<h2 id="${personalResultsId}">${personalResultsHeading}</h2>`
 
 	if (haveDefinitelyClashing) html += sectionWithLandmark(3, true, clashingId, clashingHeading,
-		clashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely', equivalents))
+		clashingMeetings(peopleDefinitelyClashingMeetings, 'Definitely'))
 	if (haveNearlyClashing) html += sectionWithLandmark(3, false, nearlyClashingId, nearlyClashingHeading,
-		clashingMeetings(peopleNearlyClashingMeetings, 'Nearly', equivalents))
+		clashingMeetings(peopleNearlyClashingMeetings, 'Nearly'))
 
 	html += sectionWithLandmark(3, false, timetableId, timetableHeading,
-		timetable(personDayMeetings, personDayGaps, equivalents))
+		timetable(personDayMeetings, personDayGaps))
 
 	html += '</section>'
 
@@ -353,13 +349,13 @@ function sectionWithoutLandmark(
 	</section>`
 }
 
-function dayMeetingLinks(dms: DayMeetings, equivalents: CombineNames): string {
+function dayMeetingLinks(dms: DayMeetings): string {
 	let html = '<ul>'
 	for (const [ day, meetings ] of dms) {
 		html += `<li>${pretty(day)}<ul>`
 		if (meetings.length > 0) {
 			for (const meeting of meetings) {
-				html += listItem(meeting, false, equivalents)
+				html += listItem(meeting, false)
 			}
 		} else {
 			html += '<p>(none)</p>'
@@ -370,13 +366,13 @@ function dayMeetingLinks(dms: DayMeetings, equivalents: CombineNames): string {
 	return html
 }
 
-function dayMeetingCards(dms: DayMeetings, equivalents: CombineNames): string {
+function dayMeetingCards(dms: DayMeetings): string {
 	let html = ''
 
 	for (const day of dms.keys()) {
 		const meetings = dms.get(day)!
 		html += sectionWithoutLandmark(4, false, pretty(day),
-			meetings.length > 0 ? meetingCards(5, meetings, equivalents) : '<p>(none)</p>')
+			meetings.length > 0 ? meetingCards(5, meetings) : '<p>(none)</p>')
 	}
 
 	return html
@@ -385,14 +381,12 @@ function dayMeetingCards(dms: DayMeetings, equivalents: CombineNames): string {
 function meetingCards(
 	meetingsLevel: number,
 	meetings: Meeting[] | Partial<Meeting>[],
-	equivalents: CombineNames,
 ): string {
 	return '<div class="meeting-container">' +
 		meetings.map(meeting => meetingCard({
 			kind: 'meeting',
 			meeting,
 			headingLevel: meetingsLevel,
-			equivalents,
 		})).join('\n') +
 		'</div>'
 }
@@ -429,7 +423,7 @@ function sectionLink(flag: boolean, idref: string, pretty: string) {
 		: `${pretty} (none)`
 }
 
-function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: CombineNames) {
+function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps) {
 	const tTop = `<table>
 		<thead>
 			<tr>
@@ -460,7 +454,7 @@ function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: Combine
 
 			for (const activity of activities) {
 				if ('kind' in activity) {
-					html += listItem(activity, false, combined, name)
+					html += listItem(activity, false, name)
 				} else {
 					html += `<li><p>Free ${dtf(activity.start)} to ${dtf(activity.end)}</p></li>`
 				}
@@ -474,17 +468,17 @@ function timetable(pdm: PersonDayMeetings, pdg: PersonDayGaps, combined: Combine
 	return html
 }
 
-function listItem(meeting: Meeting, includeDay: boolean, combined: CombineNames, skipName?: string): string {
-	return `<li><p>${inlineSummary(meeting, includeDay, combined, skipName)}</p></li>`
+function listItem(meeting: Meeting, includeDay: boolean, skipName?: string): string {
+	return `<li><p>${inlineSummary(meeting, includeDay, skipName)}</p></li>`
 }
 
-function inlineSummary(meeting: Meeting, includeDay: boolean, combned: CombineNames, skipName?: string): string {
+function inlineSummary(meeting: Meeting, includeDay: boolean, skipName?: string): string {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + ' ' : ''
 	const names = skipName
 		? meeting.names.filter(name => name !== skipName)
 		: meeting.names
 	const nameHtml = names.length > 0
-		? `, <i>${people(names, combned)}</i>`
+		? `, <i>${people(names)}</i>`
 		: ''
 	const realStart = meeting.match === 'mismatch'
 		? meeting.calendarStart
@@ -580,7 +574,7 @@ function meetingCard(args: MeetingCardArgs): string {
 	}
 
 	out += `<dt>Room</dt><dd>${args.meeting.room ?? UNKNOWN_PROPERTY}</dd>`
-	if (args.kind === 'meeting' && args.meeting.names) out += `<dt>People</dt><dd>${people(args.meeting.names, args.equivalents)}</dd>`
+	if (args.kind === 'meeting' && args.meeting.names) out += `<dt>People</dt><dd>${people(args.meeting.names)}</dd>`
 	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}">${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}</a></dd>`
 	if ('issueUrl' in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}">${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}</a></dd>`
 
@@ -622,7 +616,7 @@ function newIssueForm(repos: RepoSpec[], seq: number, alreadyHaveBookings: boole
 		</form>`
 }
 
-function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: CombineNames): string {
+function clashingMeetings(pcm: PersonClashingMeetings, kind: string): string {
 	let html = ''
 	for (const [ name, cms ] of pcm) {
 		if (cms.size) {
@@ -630,9 +624,9 @@ function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: C
 			html += `<h4>${kind} clashing meetings for ${name}</h4><ol class="clashing">`
 			for (const [ m, o ] of cms) {
 				html += `<li>
-					<p>${inlineSummary(m, true, combined, name)}</p>${alternativesOrNot(m)}
+					<p>${inlineSummary(m, true, name)}</p>${alternativesOrNot(m)}
 					<p>and</p>
-					<p>${inlineSummary(o, true, combined, name)}</p>${alternativesOrNot(o)}</li>`
+					<p>${inlineSummary(o, true, name)}</p>${alternativesOrNot(o)}</li>`
 			}
 			html += '</ol>'
 			html += '</section>'
@@ -641,7 +635,7 @@ function clashingMeetings(pcm: PersonClashingMeetings, kind: string, combined: C
 	return html
 }
 
-function possibleDuplicates(rdm: RepoDuplicateMeetings, combined: CombineNames): string {
+function possibleDuplicates(rdm: RepoDuplicateMeetings): string {
 	let html = ''
 	for (const [ repo, possibleDupes ] of rdm) {
 		html += `<h4>Possibly duplicate meetings in ${repo}</h4>`
@@ -649,7 +643,7 @@ function possibleDuplicates(rdm: RepoDuplicateMeetings, combined: CombineNames):
 			html += `<p>Set of possible duplicates ${String(index + 1)}:</p>`
 			html += '<ul>'
 			for (const m of meetings) {
-				html += `<li><p>${inlineSummary(m, true, combined)}</p></li>`
+				html += `<li><p>${inlineSummary(m, true)}</p></li>`
 			}
 			html += '</ul>'
 		}
@@ -657,11 +651,11 @@ function possibleDuplicates(rdm: RepoDuplicateMeetings, combined: CombineNames):
 	return html
 }
 
-function unassignedList(unassigned: Meeting[], combined: CombineNames): string {
+function unassignedList(unassigned: Meeting[]): string {
 	let html = ''
 	html += '<ul>'
 	for (const meeting of unassigned) {
-		html += `<li><p>${inlineSummary(meeting, true, combined)}</p></li>`
+		html += `<li><p>${inlineSummary(meeting, true)}</p></li>`
 	}
 	html += '</ul>'
 	return html
@@ -677,10 +671,8 @@ function notes(meeting: Partial<Meeting>): string {
 	return ''
 }
 
-function people(names: string[], combined: CombineNames): string {
-	return names.map(name => combined.has(name)
-		? combined.get(name)! + ' (' + name + ')'
-		: name).join(', ')
+function people(names: string[]): string {
+	return names.join(', ')
 }
 
 function dtf(pdt?: Temporal.PlainDateTime): string {

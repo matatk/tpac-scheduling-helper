@@ -349,7 +349,7 @@ const BEFORE_TPAC_ID = "before";
 const BEFORE_TPAC_HEADING = "Before TPAC";
 const UNKNOWN_PROPERTY = "???";
 let headingCounter = 0;
-function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equivalents, toolName, toolUrl, repos, script, style }) {
+function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, toolName, toolUrl, repos, script, style }) {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
@@ -385,8 +385,7 @@ function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equiv
 		} else beforeAndDayMeeitngs.get(key)?.push(meetingCard({
 			kind: "meeting",
 			meeting,
-			headingLevel: 1,
-			equivalents
+			headingLevel: 1
 		}));
 	}
 	return htmlStart + beforeAndDayMeeitngs.entries().reduce((acc, entry) => {
@@ -395,15 +394,15 @@ function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equiv
 		return acc;
 	}, "") + htmlEnd;
 }
-function makeSchedulingPage({ cancelledMeetings, dayMeetings, equivalents, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
+function makeSchedulingPage({ cancelledMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
 	const haveInvalid = invalidMeetings.length > 0;
 	const haveMeetings = validMeetings.length > 0;
 	const haveMoved = movedMeetings.length > 0;
 	const havePossibleDuplicates = repoPossibleDuplicates.size > 0;
 	const haveUnassigned = unassignedMeetings.length > 0;
 	const haveCancelled = cancelledMeetings.length > 0;
-	const plannedLinks = dayMeetingLinks(dayMeetings, equivalents);
-	const planned = dayMeetingCards(dayMeetings, equivalents);
+	const plannedLinks = dayMeetingLinks(dayMeetings);
+	const planned = dayMeetingCards(dayMeetings);
 	const navFilteringId = "nav-and-filtering";
 	const navFilteringHeading = "Navigation and filtering";
 	const groupResultsId = "group-results";
@@ -465,18 +464,18 @@ function makeSchedulingPage({ cancelledMeetings, dayMeetings, equivalents, haveD
 		</body></html>`;
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`;
-	if (html) html += sectionWithLandmark(3, false, invalidId, invalidHeading, meetingCards(4, invalidMeetings, equivalents));
-	if (haveMoved) html += sectionWithLandmark(3, false, movedId, movedHeading, meetingCards(4, movedMeetings, equivalents));
-	if (havePossibleDuplicates) html += sectionWithLandmark(3, true, possibleDuplicatesId, possibleDuplicatesHeading, "<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p><p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>" + possibleDuplicates(repoPossibleDuplicates, equivalents));
-	if (haveUnassigned) html += sectionWithLandmark(3, true, unassignedId, unassignedHeading, unassignedList(unassignedMeetings, equivalents));
+	if (html) html += sectionWithLandmark(3, false, invalidId, invalidHeading, meetingCards(4, invalidMeetings));
+	if (haveMoved) html += sectionWithLandmark(3, false, movedId, movedHeading, meetingCards(4, movedMeetings));
+	if (havePossibleDuplicates) html += sectionWithLandmark(3, true, possibleDuplicatesId, possibleDuplicatesHeading, "<p>If there are multiple tracking issues in the same repo that refer to the same Calendar meeting, they may be duplicates (they may also be referring to separate parts of the same, longer, meeting).</p><p>Tracking issues in <em>different</em> repos that refer to the same Calendar entry are not automatically considerd possible duplicates.</p>" + possibleDuplicates(repoPossibleDuplicates));
+	if (haveUnassigned) html += sectionWithLandmark(3, true, unassignedId, unassignedHeading, unassignedList(unassignedMeetings));
 	if (haveMeetings) html += sectionWithLandmark(3, false, plannedId, plannedHeading, sectionWithoutLandmark(4, true, "Summary", plannedLinks) + planned);
-	if (haveCancelled) html += sectionWithLandmark(3, false, cancelledId, cancelledHeading, meetingCards(4, cancelledMeetings, equivalents));
+	if (haveCancelled) html += sectionWithLandmark(3, false, cancelledId, cancelledHeading, meetingCards(4, cancelledMeetings));
 	html += "</section>";
 	html += `<section aria-labelledby="${personalResultsId}">
 		<h2 id="${personalResultsId}">${personalResultsHeading}</h2>`;
-	if (haveDefinitelyClashing) html += sectionWithLandmark(3, true, clashingId, clashingHeading, clashingMeetings(peopleDefinitelyClashingMeetings, "Definitely", equivalents));
-	if (haveNearlyClashing) html += sectionWithLandmark(3, false, nearlyClashingId, nearlyClashingHeading, clashingMeetings(peopleNearlyClashingMeetings, "Nearly", equivalents));
-	html += sectionWithLandmark(3, false, timetableId, timetableHeading, timetable(personDayMeetings, personDayGaps, equivalents));
+	if (haveDefinitelyClashing) html += sectionWithLandmark(3, true, clashingId, clashingHeading, clashingMeetings(peopleDefinitelyClashingMeetings, "Definitely"));
+	if (haveNearlyClashing) html += sectionWithLandmark(3, false, nearlyClashingId, nearlyClashingHeading, clashingMeetings(peopleNearlyClashingMeetings, "Nearly"));
+	html += sectionWithLandmark(3, false, timetableId, timetableHeading, timetable(personDayMeetings, personDayGaps));
 	html += "</section>";
 	return html + htmlEnd;
 }
@@ -498,31 +497,30 @@ function sectionWithoutLandmark(headingLevel, restrained, heading, content) {
 		${content}
 	</section>`;
 }
-function dayMeetingLinks(dms, equivalents) {
+function dayMeetingLinks(dms) {
 	let html = "<ul>";
 	for (const [day, meetings] of dms) {
 		html += `<li>${pretty(day)}<ul>`;
-		if (meetings.length > 0) for (const meeting of meetings) html += listItem(meeting, false, equivalents);
+		if (meetings.length > 0) for (const meeting of meetings) html += listItem(meeting, false);
 		else html += "<p>(none)</p>";
 		html += "</ul></i>";
 	}
 	html += "</ul>";
 	return html;
 }
-function dayMeetingCards(dms, equivalents) {
+function dayMeetingCards(dms) {
 	let html = "";
 	for (const day of dms.keys()) {
 		const meetings = dms.get(day);
-		html += sectionWithoutLandmark(4, false, pretty(day), meetings.length > 0 ? meetingCards(5, meetings, equivalents) : "<p>(none)</p>");
+		html += sectionWithoutLandmark(4, false, pretty(day), meetings.length > 0 ? meetingCards(5, meetings) : "<p>(none)</p>");
 	}
 	return html;
 }
-function meetingCards(meetingsLevel, meetings, equivalents) {
+function meetingCards(meetingsLevel, meetings) {
 	return "<div class=\"meeting-container\">" + meetings.map((meeting) => meetingCard({
 		kind: "meeting",
 		meeting,
-		headingLevel: meetingsLevel,
-		equivalents
+		headingLevel: meetingsLevel
 	})).join("\n") + "</div>";
 }
 function peopleSelector(pms) {
@@ -550,7 +548,7 @@ function peopleSelectorStyle(pms) {
 function sectionLink(flag, idref, pretty) {
 	return flag ? `<a href="#${idref}">${pretty}</a>` : `${pretty} (none)`;
 }
-function timetable(pdm, pdg, combined) {
+function timetable(pdm, pdg) {
 	const tTop = `<table>
 		<thead>
 			<tr>
@@ -573,7 +571,7 @@ function timetable(pdm, pdg, combined) {
 			html += "<td><ul>";
 			const activities = [...pdm.get(name)?.get(day) ?? [], ...gaps];
 			sort(activities);
-			for (const activity of activities) if ("kind" in activity) html += listItem(activity, false, combined, name);
+			for (const activity of activities) if ("kind" in activity) html += listItem(activity, false, name);
 			else html += `<li><p>Free ${dtf(activity.start)} to ${dtf(activity.end)}</p></li>`;
 			html += "</ul></td>";
 		}
@@ -581,13 +579,13 @@ function timetable(pdm, pdg, combined) {
 	}
 	return html;
 }
-function listItem(meeting, includeDay, combined, skipName) {
-	return `<li><p>${inlineSummary(meeting, includeDay, combined, skipName)}</p></li>`;
+function listItem(meeting, includeDay, skipName) {
+	return `<li><p>${inlineSummary(meeting, includeDay, skipName)}</p></li>`;
 }
-function inlineSummary(meeting, includeDay, combned, skipName) {
+function inlineSummary(meeting, includeDay, skipName) {
 	const maybeDay = includeDay ? pretty(meeting.calendarDay) + " " : "";
 	const names = skipName ? meeting.names.filter((name) => name !== skipName) : meeting.names;
-	const nameHtml = names.length > 0 ? `, <i>${people(names, combned)}</i>` : "";
+	const nameHtml = names.length > 0 ? `, <i>${people(names)}</i>` : "";
 	const realStart = meeting.match === "mismatch" ? meeting.calendarStart : meeting.start;
 	const realEnd = meeting.match === "mismatch" ? meeting.calendarEnd : meeting.end;
 	const movedMaybe = meeting.match === "mismatch" ? " (moved)" : "";
@@ -673,7 +671,7 @@ function meetingCard(args) {
 		out += `<dt>Our time</dt><dd>${dtf(args.meeting.start)}&ndash;${dtf(args.meeting.end)}</dd>`;
 	} else out += `<dt>Time</dt><dd>${dtf(args.meeting.calendarStart)}&ndash;${dtf(args.meeting.calendarEnd)}</dd>`;
 	out += `<dt>Room</dt><dd>${args.meeting.room ?? UNKNOWN_PROPERTY}</dd>`;
-	if (args.kind === "meeting" && args.meeting.names) out += `<dt>People</dt><dd>${people(args.meeting.names, args.equivalents)}</dd>`;
+	if (args.kind === "meeting" && args.meeting.names) out += `<dt>People</dt><dd>${people(args.meeting.names)}</dd>`;
 	out += `<dt>Calendar URL</dt><dd><a href="${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}">${args.meeting.calendarUrl ?? UNKNOWN_PROPERTY}</a></dd>`;
 	if ("issueUrl" in args.meeting) out += `<dt>Our issue URL</dt><dd><a href="${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}">${args.meeting.issueUrl ?? UNKNOWN_PROPERTY}</a></dd>`;
 	if (args.kind !== "calendar" && args.meeting.match) out += `<dt>Time match</dt><dd>${matchPretty[args.meeting.match]}</dd>`;
@@ -700,37 +698,37 @@ function newIssueForm(repos, seq, alreadyHaveBookings) {
 			</p>
 		</form>`;
 }
-function clashingMeetings(pcm, kind, combined) {
+function clashingMeetings(pcm, kind) {
 	let html = "";
 	for (const [name, cms] of pcm) if (cms.size) {
 		html += `<section data-person="${name}">`;
 		html += `<h4>${kind} clashing meetings for ${name}</h4><ol class="clashing">`;
 		for (const [m, o] of cms) html += `<li>
-					<p>${inlineSummary(m, true, combined, name)}</p>${alternativesOrNot(m)}
+					<p>${inlineSummary(m, true, name)}</p>${alternativesOrNot(m)}
 					<p>and</p>
-					<p>${inlineSummary(o, true, combined, name)}</p>${alternativesOrNot(o)}</li>`;
+					<p>${inlineSummary(o, true, name)}</p>${alternativesOrNot(o)}</li>`;
 		html += "</ol>";
 		html += "</section>";
 	}
 	return html;
 }
-function possibleDuplicates(rdm, combined) {
+function possibleDuplicates(rdm) {
 	let html = "";
 	for (const [repo, possibleDupes] of rdm) {
 		html += `<h4>Possibly duplicate meetings in ${repo}</h4>`;
 		for (const [index, meetings] of possibleDupes.entries()) {
 			html += `<p>Set of possible duplicates ${String(index + 1)}:</p>`;
 			html += "<ul>";
-			for (const m of meetings) html += `<li><p>${inlineSummary(m, true, combined)}</p></li>`;
+			for (const m of meetings) html += `<li><p>${inlineSummary(m, true)}</p></li>`;
 			html += "</ul>";
 		}
 	}
 	return html;
 }
-function unassignedList(unassigned, combined) {
+function unassignedList(unassigned) {
 	let html = "";
 	html += "<ul>";
-	for (const meeting of unassigned) html += `<li><p>${inlineSummary(meeting, true, combined)}</p></li>`;
+	for (const meeting of unassigned) html += `<li><p>${inlineSummary(meeting, true)}</p></li>`;
 	html += "</ul>";
 	return html;
 }
@@ -741,8 +739,8 @@ function notes(meeting) {
 		</details>`;
 	return "";
 }
-function people(names, combined) {
-	return names.map((name) => combined.has(name) ? combined.get(name) + " (" + name + ")" : name).join(", ");
+function people(names) {
+	return names.join(", ");
 }
 function dtf(pdt) {
 	return pdt ? pdt.toLocaleString(void 0, {
@@ -770,10 +768,9 @@ function footer(toolName, toolUrl) {
 //#endregion
 //#region src/meeting-from-issue.ts
 let meetingCounter = 1;
-function meetingFromIssue(dayInfo, getter, issue) {
+function meetingFromIssue(dayInfo, getter, combine, issue) {
 	const bodyInfo = parseBodyInfo(dayInfo, issue.body);
 	bodyInfo.extraPeople ??= [];
-	const names = issue.assignees.map((assignee) => assignee.login);
 	const id = URL.parse(bodyInfo.calendarUrl?.replace(/\/$/, "") ?? "")?.pathname.split("/").at(-1);
 	const calendarInfo = getter(id ?? "");
 	const match = calendarInfo.kind !== "nonexistent" ? bodyInfo.start && bodyInfo.end ? timeMatch(calendarInfo.calendarStart, calendarInfo.calendarEnd, bodyInfo.start, bodyInfo.end) : void 0 : void 0;
@@ -786,7 +783,7 @@ function meetingFromIssue(dayInfo, getter, issue) {
 		issueUrl: issue.url,
 		kind: calendarInfo.kind,
 		match,
-		names: Array.from(/* @__PURE__ */ new Set([...names, ...bodyInfo.extraPeople])),
+		names: normalise(combine, [...issue.assignees.map((assignee) => assignee.login), ...bodyInfo.extraPeople]),
 		notes: bodyInfo.notes,
 		start: bodyInfo.start,
 		tag: meetingCounter++,
@@ -823,6 +820,9 @@ function timeStringToPlainDateTime(startOfDay, time) {
 		hours,
 		minutes
 	}));
+}
+function normalise(equivalents, raw) {
+	return raw.map((rawName) => equivalents.get(rawName) ?? rawName);
 }
 //#endregion
 //#region src/clashing-meetings-set.ts
@@ -871,18 +871,17 @@ function addClashingMeeting(map, name, m, o) {
 	if (!map.has(name)) map.set(name, new ClashingMeetingsSet());
 	map.get(name).add(m, o);
 }
-function processSchedule(dayInfo, equivalents, alternatives, validMeetings) {
+function processSchedule(dayInfo, alternatives, validMeetings) {
 	const dayMeetings = dayThings();
 	const personDayMeetings = /* @__PURE__ */ new Map();
 	const personDayGaps = /* @__PURE__ */ new Map();
 	const repoMeetings = /* @__PURE__ */ new Map();
 	for (const meeting of validMeetings) {
 		for (const name of meeting.names) {
-			const normalisedName = equivalents.get(name) ?? name;
-			if (alternatives.length > 0 && !alternatives.includes(normalisedName)) continue;
-			if (!personDayMeetings.has(normalisedName)) personDayMeetings.set(normalisedName, dayThings());
-			personDayMeetings.get(normalisedName)?.get(meeting.day)?.push(meeting);
-			if (!personDayGaps.has(normalisedName)) personDayGaps.set(normalisedName, dayThings());
+			if (alternatives.length > 0 && !alternatives.includes(name)) continue;
+			if (!personDayMeetings.has(name)) personDayMeetings.set(name, dayThings());
+			personDayMeetings.get(name)?.get(meeting.day)?.push(meeting);
+			if (!personDayGaps.has(name)) personDayGaps.set(name, dayThings());
 		}
 		addMeeting(dayMeetings, meeting.calendarDay, meeting);
 		addMeeting(repoMeetings, repoFromIssueUrl(meeting.issueUrl), meeting);
@@ -984,9 +983,9 @@ function makeEquivalents(combine) {
 	if (combine) for (const [name, otherName] of combine) equivalents.set(name, otherName);
 	return equivalents;
 }
-function generateMeetingList({ alternatives, dayInfo, equivalents, issues, repos }) {
+function generateMeetingList({ alternatives, combine, dayInfo, issues, repos }) {
 	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(issues.reduce((acc, issue) => {
-		const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue);
+		const meeting = meetingFromIssue(dayInfo, calendarMeeting, combine, issue);
 		if (meeting.id && plannedByUs(alternatives, meeting)) {
 			if (acc[meeting.id]) acc[meeting.id].push(meeting);
 			else acc[meeting.id] = [meeting];
@@ -997,7 +996,6 @@ function generateMeetingList({ alternatives, dayInfo, equivalents, issues, repos
 		allMeetings,
 		meetingsWithBookings,
 		dayInfo,
-		equivalents,
 		toolName: MY_NAME,
 		toolUrl: MY_URL,
 		repos,
@@ -1005,9 +1003,9 @@ function generateMeetingList({ alternatives, dayInfo, equivalents, issues, repos
 		style: pathFromPackageRoot(STYLE_FILE)
 	});
 }
-function doScheduling({ alternatives, dayInfo, equivalents, issues }) {
-	const { validMeetings, cancelledMeetings, movedMeetings, invalidMeetings, unassignedMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, issue))), alternatives);
-	const { repoPossibleDuplicates, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps } = processSchedule(dayInfo, equivalents, alternatives, validMeetings);
+function doScheduling({ alternatives, combine, dayInfo, issues }) {
+	const { validMeetings, cancelledMeetings, movedMeetings, invalidMeetings, unassignedMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, combine, issue))), alternatives);
+	const { repoPossibleDuplicates, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps } = processSchedule(dayInfo, alternatives, validMeetings);
 	return makeSchedulingPage({
 		invalidMeetings,
 		validMeetings,
@@ -1018,7 +1016,6 @@ function doScheduling({ alternatives, dayInfo, equivalents, issues }) {
 		peopleNearlyClashingMeetings,
 		peopleDefinitelyClashingMeetings,
 		personDayMeetings,
-		equivalents,
 		dayMeetings,
 		haveDefinitelyClashing,
 		haveNearlyClashing,
@@ -1133,20 +1130,20 @@ function main() {
 			return acc;
 		}, []) ?? [];
 		const tpac = TPACs[argv.year];
-		const equivalents = makeEquivalents(argv.combine);
 		const issues = getIssues(argv.gh, repos, argv.queryResult);
 		calendarInit(tpac.icsUrl, argv.calendar);
+		const combine = makeEquivalents(argv.combine);
 		if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
 			alternatives: argv.alternatives,
+			combine,
 			dayInfo: tpac.days,
-			equivalents,
 			issues,
 			repos
 		}));
 		if (argv.outputSchedule) write(argv.outputSchedule, "scheduling info", doScheduling({
-			alternatives: argv.alternatives ?? [],
+			alternatives: argv.alternatives,
+			combine,
 			dayInfo: tpac.days,
-			equivalents,
 			issues
 		}));
 		if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));

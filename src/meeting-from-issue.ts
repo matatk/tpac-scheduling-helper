@@ -6,6 +6,7 @@ import { isDay } from './day.ts'
 import { timeMatch } from './meeting.ts'
 
 import type { CalendarMeetingGetter } from './calendar.ts'
+import type { CombineNames } from './scheduling.ts'
 import type { Day } from './day.ts'
 import type { GhIssue } from './query-issues.ts'
 import type { Meeting } from './meeting.ts'
@@ -28,12 +29,12 @@ let meetingCounter = 1
 export default function meetingFromIssue(
 	dayInfo: TpacDayInfo,
 	getter: CalendarMeetingGetter,
+	combine: CombineNames,
 	issue: GhIssue,
 ): Meeting | Partial<Meeting> {
 	const bodyInfo = parseBodyInfo(dayInfo, issue.body)
 	bodyInfo.extraPeople ??= []
 
-	const names = issue.assignees.map(assignee => assignee.login)
 	const id = URL.parse(bodyInfo.calendarUrl?.replace(/\/$/, '') ?? '')?.pathname.split('/').at(-1)  // FIXME test
 	const calendarInfo = getter(id ?? '')
 
@@ -52,7 +53,10 @@ export default function meetingFromIssue(
 		issueUrl: issue.url,
 		kind: calendarInfo.kind,
 		match,
-		names: Array.from(new Set([ ...names, ...bodyInfo.extraPeople ])),
+		names: normalise(combine, [
+			...issue.assignees.map(assignee => assignee.login),
+			...bodyInfo.extraPeople,
+		]),
 		notes: bodyInfo.notes,
 		start: bodyInfo.start,
 		tag: meetingCounter++,
@@ -88,4 +92,8 @@ function parseBodyInfo(dayInfo: TpacDayInfo, body: string): Partial<ParsedGhBody
 function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {
 	const [ hours, minutes ] = time.split(':').map(s => parseInt(s))
 	return startOfDay.add(Temporal.Duration.from({ hours, minutes }))
+}
+
+function normalise(equivalents: CombineNames, raw: string[]): string[] {
+	return raw.map(rawName => equivalents.get(rawName) ?? rawName)
 }
