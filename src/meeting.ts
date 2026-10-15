@@ -127,7 +127,13 @@ export function sameActualMeeting(meeting: Meeting, other: Meeting) {
 		meeting.end.equals(other.end)
 }
 
-export function categoriseMeetings(allMeetings: Partial<Meeting>[]): CategorisedMeetings {
+// TODO: It would be better if we could run this from the perspective of a repo, not a list of names?
+export function plannedByUs(alternatives: string[], meeting: Partial<Meeting>): boolean {
+	if (alternatives.length === 0) return true
+	return meeting.names?.some(attendee => alternatives.includes(attendee)) ?? false
+}
+
+export function categoriseMeetings(allMeetings: Partial<Meeting>[], alternatives: string[]): CategorisedMeetings {
 	const validMeetings: Meeting[] = []
 	const cancelledMeetings: Partial<Meeting>[] = []
 	const invalidMeetings: Partial<Meeting>[] = []
@@ -137,13 +143,18 @@ export function categoriseMeetings(allMeetings: Partial<Meeting>[]): Categorised
 	for (const meeting of allMeetings) {
 		if (isMeeting(meeting)) {
 			if (meeting.status === 'cancelled') {
-				cancelledMeetings.push(meeting)
+				if (plannedByUs(alternatives, meeting)) cancelledMeetings.push(meeting)
 			} else {
-				validMeetings.push(meeting)
-				if (meeting.match === 'mismatch') movedMeetings.push(meeting)
-				if (meeting.names.length === 0) unassignedMeetings.push(meeting)
+				// FIXME: it may've been planned by another group (another repo) but we don't have a concept of 'our' repo yet, so leave this in. We only have a concept of to whom the meeting is of interest.
+				if (meeting.names.length === 0) {
+					unassignedMeetings.push(meeting)
+				} else if (plannedByUs(alternatives, meeting)) {
+					validMeetings.push(meeting)
+					if (meeting.match === 'mismatch') movedMeetings.push(meeting)
+				}
 			}
 		} else {
+			// FIXME: it may've been planned by another group (another repo) but we don't have a concept of 'our' repo yet, so leave this in. We only have a concept of to whom the meeting is of interest.
 			invalidMeetings.push(meeting)
 		}
 	}

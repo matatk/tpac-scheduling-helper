@@ -12,9 +12,9 @@ import yargs from 'yargs'
 
 import TPACs, { tpacYears } from './src/tpacs.ts'
 import { calendarInit, calendarMeeting, calendarMeetingsZipped } from './src/calendar.ts'
+import { categoriseMeetings, plannedByUs } from './src/meeting.ts'
 import { getMembers, queryIssues } from './src/query-issues.ts'
 import { makeMeetingListPage, makeSchedulingPage } from './src/html.ts'
-import { categoriseMeetings } from './src/meeting.ts'
 import meetingFromIssue from './src/meeting-from-issue.ts'
 import processSchedule from './src/scheduling.ts'
 
@@ -38,6 +38,7 @@ type RepoSpecRaw = [string] | [string, string] // [ repo ] | [ repo, label ]
 type CombineNamesArgs = [string, string][]
 
 interface BaseArgs {
+	alternatives: string[]
 	dayInfo: TpacDayInfo
 	equivalents: CombineNames
 	issues: GhIssue[]
@@ -45,10 +46,6 @@ interface BaseArgs {
 
 interface GenerateMeetingListArgs extends BaseArgs {
 	repos: RepoSpec[]
-}
-
-interface DoSchedulingArgs extends BaseArgs {
-	alternatives: string[]
 }
 
 function errorOut(...args: unknown[]) {
@@ -104,6 +101,7 @@ function makeEquivalents(combine?: CombineNamesArgs): CombineNames {
 }
 
 function generateMeetingList({
+	alternatives,
 	dayInfo,
 	equivalents,
 	issues,
@@ -113,7 +111,7 @@ function generateMeetingList({
 	const plannedMeetings = issues.reduce(
 		(acc: Record<string, Partial<Meeting>[]>, issue) => {
 			const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue)
-			if (meeting.id) {
+			if (meeting.id && plannedByUs(alternatives, meeting)) {
 				if (acc[meeting.id]) {
 					acc[meeting.id]!.push(meeting)
 				} else {
@@ -145,9 +143,10 @@ function doScheduling({
 	dayInfo,
 	equivalents,
 	issues,
-}: DoSchedulingArgs): string {
+}: BaseArgs): string {
 	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, issue)))
 
+	// NOTE: These are returned having been filtered for relevance to the given alternative attendees, except for unassigned meetings, as we can't know in that case :-).
 	const {
 		validMeetings,
 		// All of the rest are only used in the output stage
@@ -155,7 +154,7 @@ function doScheduling({
 		movedMeetings,
 		invalidMeetings,
 		unassignedMeetings,
-	} = categoriseMeetings(allMeetings)
+	} = categoriseMeetings(allMeetings, alternatives)
 
 	const {
 		repoPossibleDuplicates,
@@ -341,6 +340,7 @@ function main() {
 
 				if (argv.outputPlan) {
 					write((argv as ProgArgs).outputPlan, 'meeting list', generateMeetingList({
+						alternatives: argv.alternatives,
 						dayInfo: tpac.days,
 						equivalents,
 						issues,

@@ -174,6 +174,88 @@ function calendarInfoFrom(event) {
 	};
 }
 //#endregion
+//#region src/sort.ts
+function sort(activities) {
+	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start));
+}
+//#endregion
+//#region src/meeting.ts
+const PDT = Temporal.PlainDateTime;
+function isMeeting(p) {
+	return !!p.tag && !!p.kind && !!p.status && !!p.calendarTitle && !!p.title && !!p.calendarDay && !!p.day && !!p.calendarStart && !!p.start && !!p.calendarEnd && !!p.end && !!p.match && !!p.room && !!p.names && !!p.calendarUrl && !!p.issueUrl && !!p.alternatives;
+}
+function isMeetingInGap(m, g) {
+	Temporal.Duration.from({ minutes: 10 });
+	return PDT.compare(m.start, g.start) >= 0 && PDT.compare(m.start, g.end) <= 0 && PDT.compare(m.end, g.start) >= 0 && PDT.compare(m.end, g.end) <= 0;
+}
+function clashes(a, b) {
+	const gap = Temporal.Duration.from({ minutes: 10 });
+	const aRealStart = a.match === "mismatch" ? a.calendarStart : a.start;
+	const aRealEnd = a.match === "mismatch" ? a.calendarEnd : a.end;
+	const bRealStart = b.match === "mismatch" ? b.calendarStart : b.start;
+	const bRealEnd = b.match === "mismatch" ? b.calendarEnd : b.end;
+	const aStartsBeforeBStarts = PDT.compare(aRealStart, bRealStart) <= 0;
+	const m = aStartsBeforeBStarts ? {
+		start: aRealStart,
+		end: aRealEnd
+	} : {
+		start: bRealStart,
+		end: bRealEnd
+	};
+	const o = aStartsBeforeBStarts ? {
+		start: bRealStart,
+		end: bRealEnd
+	} : {
+		start: aRealStart,
+		end: aRealEnd
+	};
+	if (PDT.compare(m.start, o.start) >= 0 && PDT.compare(m.start, o.end) <= 0) return "overlap";
+	if (PDT.compare(m.end, o.start) > 0 && PDT.compare(m.end, o.end) <= 0) return "overlap";
+	if (PDT.compare(m.start, o.start.subtract(gap)) >= 0 && PDT.compare(m.start, o.end.add(gap)) <= 0) return "near";
+	if (PDT.compare(m.end, o.start.subtract(gap)) >= 0 && PDT.compare(m.end, o.end.add(gap)) <= 0) return "near";
+	return "none";
+}
+function timeMatch(calendarStart, calendarEnd, ourStart, ourEnd) {
+	const start = PDT.compare(calendarStart, ourStart);
+	const end = PDT.compare(calendarEnd, ourEnd);
+	if (start === 0 && end === 0) return "exact";
+	if (start <= 0 && end >= 0) return "subset";
+	return "mismatch";
+}
+function sameActualMeeting(meeting, other) {
+	return meeting.calendarUrl === other.calendarUrl && meeting.start.equals(other.start) && meeting.end.equals(other.end);
+}
+function plannedByUs(alternatives, meeting) {
+	if (alternatives.length === 0) return true;
+	return meeting.names?.some((attendee) => alternatives.includes(attendee)) ?? false;
+}
+function categoriseMeetings(allMeetings, alternatives) {
+	const validMeetings = [];
+	const cancelledMeetings = [];
+	const invalidMeetings = [];
+	const movedMeetings = [];
+	const unassignedMeetings = [];
+	for (const meeting of allMeetings) if (isMeeting(meeting)) {
+		if (meeting.status === "cancelled") {
+			if (plannedByUs(alternatives, meeting)) cancelledMeetings.push(meeting);
+		} else if (meeting.names.length === 0) unassignedMeetings.push(meeting);
+		else if (plannedByUs(alternatives, meeting)) {
+			validMeetings.push(meeting);
+			if (meeting.match === "mismatch") movedMeetings.push(meeting);
+		}
+	} else invalidMeetings.push(meeting);
+	sort(validMeetings);
+	sort(movedMeetings);
+	sort(unassignedMeetings);
+	return {
+		cancelledMeetings,
+		invalidMeetings,
+		movedMeetings,
+		validMeetings,
+		unassignedMeetings
+	};
+}
+//#endregion
 //#region src/query-issues.ts
 function doIt(gh, args, label, processor) {
 	if (label) args.push("--label", label);
@@ -238,83 +320,6 @@ function getMembers(gh, org, repo, all) {
 		for (const team of teams) console.log(`${gh} ${getMembers(team, true).join(" ")}`);
 		console.log("\n...or, you could use the --all option to fetch all members from these teams.");
 	}
-}
-//#endregion
-//#region src/sort.ts
-function sort(activities) {
-	activities.sort((a, b) => Temporal.PlainDateTime.compare(a.start, b.start));
-}
-//#endregion
-//#region src/meeting.ts
-const PDT = Temporal.PlainDateTime;
-function isMeeting(p) {
-	return !!p.tag && !!p.kind && !!p.status && !!p.calendarTitle && !!p.title && !!p.calendarDay && !!p.day && !!p.calendarStart && !!p.start && !!p.calendarEnd && !!p.end && !!p.match && !!p.room && !!p.names && !!p.calendarUrl && !!p.issueUrl && !!p.alternatives;
-}
-function isMeetingInGap(m, g) {
-	Temporal.Duration.from({ minutes: 10 });
-	return PDT.compare(m.start, g.start) >= 0 && PDT.compare(m.start, g.end) <= 0 && PDT.compare(m.end, g.start) >= 0 && PDT.compare(m.end, g.end) <= 0;
-}
-function clashes(a, b) {
-	const gap = Temporal.Duration.from({ minutes: 10 });
-	const aRealStart = a.match === "mismatch" ? a.calendarStart : a.start;
-	const aRealEnd = a.match === "mismatch" ? a.calendarEnd : a.end;
-	const bRealStart = b.match === "mismatch" ? b.calendarStart : b.start;
-	const bRealEnd = b.match === "mismatch" ? b.calendarEnd : b.end;
-	const aStartsBeforeBStarts = PDT.compare(aRealStart, bRealStart) <= 0;
-	const m = aStartsBeforeBStarts ? {
-		start: aRealStart,
-		end: aRealEnd
-	} : {
-		start: bRealStart,
-		end: bRealEnd
-	};
-	const o = aStartsBeforeBStarts ? {
-		start: bRealStart,
-		end: bRealEnd
-	} : {
-		start: aRealStart,
-		end: aRealEnd
-	};
-	if (PDT.compare(m.start, o.start) >= 0 && PDT.compare(m.start, o.end) <= 0) return "overlap";
-	if (PDT.compare(m.end, o.start) > 0 && PDT.compare(m.end, o.end) <= 0) return "overlap";
-	if (PDT.compare(m.start, o.start.subtract(gap)) >= 0 && PDT.compare(m.start, o.end.add(gap)) <= 0) return "near";
-	if (PDT.compare(m.end, o.start.subtract(gap)) >= 0 && PDT.compare(m.end, o.end.add(gap)) <= 0) return "near";
-	return "none";
-}
-function timeMatch(calendarStart, calendarEnd, ourStart, ourEnd) {
-	const start = PDT.compare(calendarStart, ourStart);
-	const end = PDT.compare(calendarEnd, ourEnd);
-	if (start === 0 && end === 0) return "exact";
-	if (start <= 0 && end >= 0) return "subset";
-	return "mismatch";
-}
-function sameActualMeeting(meeting, other) {
-	return meeting.calendarUrl === other.calendarUrl && meeting.start.equals(other.start) && meeting.end.equals(other.end);
-}
-function categoriseMeetings(allMeetings) {
-	const validMeetings = [];
-	const cancelledMeetings = [];
-	const invalidMeetings = [];
-	const movedMeetings = [];
-	const unassignedMeetings = [];
-	for (const meeting of allMeetings) if (isMeeting(meeting)) {
-		if (meeting.status === "cancelled") cancelledMeetings.push(meeting);
-		else {
-			validMeetings.push(meeting);
-			if (meeting.match === "mismatch") movedMeetings.push(meeting);
-			if (meeting.names.length === 0) unassignedMeetings.push(meeting);
-		}
-	} else invalidMeetings.push(meeting);
-	sort(validMeetings);
-	sort(movedMeetings);
-	sort(unassignedMeetings);
-	return {
-		cancelledMeetings,
-		invalidMeetings,
-		movedMeetings,
-		validMeetings,
-		unassignedMeetings
-	};
 }
 //#endregion
 //#region src/repo.ts
@@ -979,10 +984,10 @@ function makeEquivalents(combine) {
 	if (combine) for (const [name, otherName] of combine) equivalents.set(name, otherName);
 	return equivalents;
 }
-function generateMeetingList({ dayInfo, equivalents, issues, repos }) {
+function generateMeetingList({ alternatives, dayInfo, equivalents, issues, repos }) {
 	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(issues.reduce((acc, issue) => {
 		const meeting = meetingFromIssue(dayInfo, calendarMeeting, issue);
-		if (meeting.id) {
+		if (meeting.id && plannedByUs(alternatives, meeting)) {
 			if (acc[meeting.id]) acc[meeting.id].push(meeting);
 			else acc[meeting.id] = [meeting];
 		}
@@ -1001,7 +1006,7 @@ function generateMeetingList({ dayInfo, equivalents, issues, repos }) {
 	});
 }
 function doScheduling({ alternatives, dayInfo, equivalents, issues }) {
-	const { validMeetings, cancelledMeetings, movedMeetings, invalidMeetings, unassignedMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, issue))));
+	const { validMeetings, cancelledMeetings, movedMeetings, invalidMeetings, unassignedMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, issue))), alternatives);
 	const { repoPossibleDuplicates, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps } = processSchedule(dayInfo, equivalents, alternatives, validMeetings);
 	return makeSchedulingPage({
 		invalidMeetings,
@@ -1132,6 +1137,7 @@ function main() {
 		const issues = getIssues(argv.gh, repos, argv.queryResult);
 		calendarInit(tpac.icsUrl, argv.calendar);
 		if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
+			alternatives: argv.alternatives,
 			dayInfo: tpac.days,
 			equivalents,
 			issues,
