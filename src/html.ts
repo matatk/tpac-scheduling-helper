@@ -47,8 +47,8 @@ type MeetingCardHeaderArgs =
 
 interface BaseOutputInfo {
 	equivalents: CombineNames
-	myName: string
-	myUrl: string
+	toolName: string
+	toolUrl: string
 	style: string
 }
 
@@ -109,8 +109,8 @@ export function makeMeetingListPage({
 	meetingsWithBookings,
 	dayInfo,
 	equivalents,
-	myName,
-	myUrl,
+	toolName,
+	toolUrl,
 	repos,
 	script,
 	style,
@@ -118,13 +118,13 @@ export function makeMeetingListPage({
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${myName}</title>
+			<title>${toolName}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, 'utf-8')}</style>
 		</head>
 		<body>
 			<header>
-				<h1>${myName}: Full Meeting List</h1>
+				<h1>${toolName}: Full Meeting List</h1>
 			</header>
 			<nav>
 				<h2>Meeting Days</h2>
@@ -133,9 +133,7 @@ export function makeMeetingListPage({
 			<main>`
 
 	const htmlEnd = `</main>
-		<footer>
-			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
-		</footer>
+		${footer(toolName, toolUrl)}
 		<script>${fs.readFileSync(script, 'utf-8')}</script>
 		</body></html>`
 
@@ -184,8 +182,8 @@ export function makeSchedulingPage({
 	haveNearlyClashing,
 	invalidMeetings,
 	movedMeetings,
-	myName,
-	myUrl,
+	toolName,
+	toolUrl,
 	peopleDefinitelyClashingMeetings,
 	peopleNearlyClashingMeetings,
 	personDayGaps,
@@ -244,14 +242,14 @@ export function makeSchedulingPage({
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${myName}</title>
+			<title>${toolName}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, 'utf-8')}</style>
 			${peopleSelectorStyle(personDayMeetings)}
 		</head>
 		<body>
 			<header>
-				<h1>${myName}: Group Timetabling</h1>
+				<h1>${toolName}: Group Timetabling</h1>
 			</header>
 			<nav aria-labelledby="${navFilteringId}">
 				<h2 id=${navFilteringId}>${navFilteringHeading}</h2>
@@ -274,9 +272,7 @@ export function makeSchedulingPage({
 			</nav>
 			<main>`
 	const htmlEnd = `</main>
-		<footer>
-			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
-		</footer>
+		${footer(toolName, toolUrl)}
 		</body></html>`
 
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
@@ -714,4 +710,8 @@ function alternativesOrNot(m: Meeting): string {
 
 function idFor(num: number, kind: 'heading' | 'button' | 'repo' | 'booking') {
 	return `${kind}-${String(num)}`
+}
+
+function footer(toolName: string, toolUrl: string): string {
+	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${new Date().toUTCString()}.</p></footer>`
 }

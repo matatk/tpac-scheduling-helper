@@ -130,8 +130,8 @@ function generateMeetingList({
 		meetingsWithBookings,
 		dayInfo,
 		equivalents,
-		myName: MY_NAME,
-		myUrl: MY_URL,
+		toolName: MY_NAME,
+		toolUrl: MY_URL,
 		repos,
 		script: pathFromPackageRoot(SCRIPT_FILE),
 		style: pathFromPackageRoot(STYLE_FILE),
@@ -184,8 +184,8 @@ function doScheduling({
 		haveNearlyClashing,
 		personDayGaps,
 		style: pathFromPackageRoot(STYLE_FILE),
-		myName: MY_NAME,
-		myUrl: MY_URL,
+		toolName: MY_NAME,
+		toolUrl: MY_URL,
 	})
 
 	return html

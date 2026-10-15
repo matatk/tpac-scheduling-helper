@@ -344,17 +344,17 @@ const BEFORE_TPAC_ID = "before";
 const BEFORE_TPAC_HEADING = "Before TPAC";
 const UNKNOWN_PROPERTY = "???";
 let headingCounter = 0;
-function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equivalents, myName, myUrl, repos, script, style }) {
+function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equivalents, toolName, toolUrl, repos, script, style }) {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${myName}</title>
+			<title>${toolName}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, "utf-8")}</style>
 		</head>
 		<body>
 			<header>
-				<h1>${myName}: Full Meeting List</h1>
+				<h1>${toolName}: Full Meeting List</h1>
 			</header>
 			<nav>
 				<h2>Meeting Days</h2>
@@ -362,9 +362,7 @@ function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equiv
 			</nav>
 			<main>`;
 	const htmlEnd = `</main>
-		<footer>
-			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
-		</footer>
+		${footer(toolName, toolUrl)}
 		<script>${fs.readFileSync(script, "utf-8")}<\/script>
 		</body></html>`;
 	const beforeAndDayMeeitngs = new Map([null, ...days].map((era) => [era, []]));
@@ -392,7 +390,7 @@ function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, equiv
 		return acc;
 	}, "") + htmlEnd;
 }
-function makeSchedulingPage({ cancelledMeetings, dayMeetings, equivalents, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, myName, myUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
+function makeSchedulingPage({ cancelledMeetings, dayMeetings, equivalents, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
 	const haveInvalid = invalidMeetings.length > 0;
 	const haveMeetings = validMeetings.length > 0;
 	const haveMoved = movedMeetings.length > 0;
@@ -428,14 +426,14 @@ function makeSchedulingPage({ cancelledMeetings, dayMeetings, equivalents, haveD
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${myName}</title>
+			<title>${toolName}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, "utf-8")}</style>
 			${peopleSelectorStyle(personDayMeetings)}
 		</head>
 		<body>
 			<header>
-				<h1>${myName}: Group Timetabling</h1>
+				<h1>${toolName}: Group Timetabling</h1>
 			</header>
 			<nav aria-labelledby="${navFilteringId}">
 				<h2 id=${navFilteringId}>${navFilteringHeading}</h2>
@@ -458,9 +456,7 @@ function makeSchedulingPage({ cancelledMeetings, dayMeetings, equivalents, haveD
 			</nav>
 			<main>`;
 	const htmlEnd = `</main>
-		<footer>
-			<p>Generated with <a href="${myUrl}">${myName}</a>.</p>
-		</footer>
+		${footer(toolName, toolUrl)}
 		</body></html>`;
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`;
@@ -763,6 +759,9 @@ function alternativesOrNot(m) {
 function idFor(num, kind) {
 	return `${kind}-${String(num)}`;
 }
+function footer(toolName, toolUrl) {
+	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${(/* @__PURE__ */ new Date()).toUTCString()}.</p></footer>`;
+}
 //#endregion
 //#region src/meeting-from-issue.ts
 let meetingCounter = 1;
@@ -994,8 +993,8 @@ function generateMeetingList({ dayInfo, equivalents, issues, repos }) {
 		meetingsWithBookings,
 		dayInfo,
 		equivalents,
-		myName: MY_NAME,
-		myUrl: MY_URL,
+		toolName: MY_NAME,
+		toolUrl: MY_URL,
 		repos,
 		script: pathFromPackageRoot(SCRIPT_FILE),
 		style: pathFromPackageRoot(STYLE_FILE)
@@ -1020,8 +1019,8 @@ function doScheduling({ alternatives, dayInfo, equivalents, issues }) {
 		haveNearlyClashing,
 		personDayGaps,
 		style: pathFromPackageRoot(STYLE_FILE),
-		myName: MY_NAME,
-		myUrl: MY_URL
+		toolName: MY_NAME,
+		toolUrl: MY_URL
 	});
 }
 function main() {

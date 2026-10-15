@@ -197,9 +197,6 @@ table ul {
 		top: 0.5rem;
 		width: var(--sidebar-width);
 		float: left;
-		max-height: calc(100vh - 0.5rem - 2rem);
-		/* 2rem for the footer */
-		overflow-y: auto;
 	}
 
 	nav>h2 {
@@ -232,16 +229,5 @@ table ul {
 		background-color: light-dark(white, black);
 		color: light-dark(black, white);
 		max-width: var(--details-popup-width);
-	}
-
-	footer {
-		position: fixed;
-		left: 0;
-		bottom: 0;
-		width: var(--sidebar-width);
-	}
-
-	footer>* {
-		margin: 0;
 	}
 }
