@@ -206,7 +206,7 @@ You can query across multiple GitHub repos in order to find scheduling issues. T
 
 	```sh
 	tpac-scheduling-helper \
-	  --label tpac \
+		--label tpac \
 		--repo w3c/apa \
 		--repo w3c/aria
 	```
@@ -229,7 +229,7 @@ If you are querying across public and enterprise GitHub instances, the same pers
 
 For example, passing `--combine TopSecretAnna PublicAnna` will instruct the tool to treat occurences of the username 'TopSecretAnna' as if they had been 'PublicAnna' all along. This ensures clashing meetings are correctly identified.
 
-**When a name is overridden, this is noted in the tool's output.**
+When a name is overridden, only the replacement name will be shown in the tool's output - including for meeting attendances that were assigned to the overridden name in their respective repos.
 
 The look-up is only done once: attempting to override a name that was already overriding another name will not produce the desired results. However, it is possible to override multiple names with one other name.
 
