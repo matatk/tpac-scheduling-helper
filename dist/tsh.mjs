@@ -102,8 +102,10 @@ function isCalendarMeeting(cm) {
 	return false;
 }
 function calendarInit(calendarUrl, localFile) {
-	const calendar = convertIcsCalendar(void 0, getSchedule(calendarUrl, localFile));
+	const { downloaded, content } = getSchedule(calendarUrl, localFile);
+	const calendar = convertIcsCalendar(void 0, content);
 	for (const event of calendar.events ?? []) icsEvents[event.uid] = event;
+	return downloaded;
 }
 function calendarMeeting(uid) {
 	const event = icsEvents[uid];
@@ -135,7 +137,10 @@ function getSchedule(scheduleUrl, path) {
 		]);
 		if (child.error) throw new Error(child.stderr.toString());
 	}
-	return fs.readFileSync(path, "utf-8");
+	return {
+		downloaded: fs.statSync(path).mtime,
+		content: fs.readFileSync(path, "utf-8")
+	};
 }
 function getTime(date) {
 	if (!date) return;
@@ -349,7 +354,7 @@ const BEFORE_TPAC_ID = "before";
 const BEFORE_TPAC_HEADING = "Before TPAC";
 const UNKNOWN_PROPERTY = "???";
 let headingCounter = 0;
-function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, toolName, toolUrl, repos, script, style }) {
+function makeMeetingListPage({ allMeetings, calDownloaded, meetingsWithBookings, dayInfo, toolName, toolUrl, repos, script, style }) {
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
@@ -367,7 +372,7 @@ function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, toolN
 			</nav>
 			<main>`;
 	const htmlEnd = `</main>
-		${footer(toolName, toolUrl)}
+		${footer(toolName, toolUrl, calDownloaded)}
 		<script>${fs.readFileSync(script, "utf-8")}<\/script>
 		</body></html>`;
 	const beforeAndDayMeeitngs = new Map([null, ...days].map((era) => [era, []]));
@@ -394,7 +399,7 @@ function makeMeetingListPage({ allMeetings, meetingsWithBookings, dayInfo, toolN
 		return acc;
 	}, "") + htmlEnd;
 }
-function makeSchedulingPage({ cancelledMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
+function makeSchedulingPage({ calDownloaded, cancelledMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
 	const haveInvalid = invalidMeetings.length > 0;
 	const haveMeetings = validMeetings.length > 0;
 	const haveMoved = movedMeetings.length > 0;
@@ -460,7 +465,7 @@ function makeSchedulingPage({ cancelledMeetings, dayMeetings, haveDefinitelyClas
 			</nav>
 			<main>`;
 	const htmlEnd = `</main>
-		${footer(toolName, toolUrl)}
+		${footer(toolName, toolUrl, calDownloaded)}
 		</body></html>`;
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
 		<h2 id="${groupResultsId}">${groupResultsHeading}</h2>`;
@@ -762,8 +767,8 @@ function alternativesOrNot(m) {
 function idFor(num, kind) {
 	return `${kind}-${String(num)}`;
 }
-function footer(toolName, toolUrl) {
-	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${(/* @__PURE__ */ new Date()).toUTCString()}.</p></footer>`;
+function footer(toolName, toolUrl, calDownloaded) {
+	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${(/* @__PURE__ */ new Date()).toUTCString()}. Calendar downloaded on ${calDownloaded.toUTCString()}.</p></footer>`;
 }
 //#endregion
 //#region src/meeting-from-issue.ts
@@ -983,7 +988,7 @@ function makeEquivalents(combine) {
 	if (combine) for (const [name, otherName] of combine) equivalents.set(name, otherName);
 	return equivalents;
 }
-function generateMeetingList({ alternatives, combine, dayInfo, issues, repos }) {
+function generateMeetingList({ alternatives, calDownloaded, combine, dayInfo, issues, repos }) {
 	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(issues.reduce((acc, issue) => {
 		const meeting = meetingFromIssue(dayInfo, calendarMeeting, combine, issue);
 		if (meeting.id && plannedByUs(alternatives, meeting)) {
@@ -994,6 +999,7 @@ function generateMeetingList({ alternatives, combine, dayInfo, issues, repos }) 
 	}, {}));
 	return makeMeetingListPage({
 		allMeetings,
+		calDownloaded,
 		meetingsWithBookings,
 		dayInfo,
 		toolName: MY_NAME,
@@ -1003,10 +1009,11 @@ function generateMeetingList({ alternatives, combine, dayInfo, issues, repos }) 
 		style: pathFromPackageRoot(STYLE_FILE)
 	});
 }
-function doScheduling({ alternatives, combine, dayInfo, issues }) {
+function doScheduling({ alternatives, calDownloaded, combine, dayInfo, issues }) {
 	const { validMeetings, cancelledMeetings, movedMeetings, invalidMeetings, unassignedMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, combine, issue))), alternatives);
 	const { repoPossibleDuplicates, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps } = processSchedule(dayInfo, alternatives, validMeetings);
 	return makeSchedulingPage({
+		calDownloaded,
 		invalidMeetings,
 		validMeetings,
 		movedMeetings,
@@ -1131,10 +1138,11 @@ function main() {
 		}, []) ?? [];
 		const tpac = TPACs[argv.year];
 		const issues = getIssues(argv.gh, repos, argv.queryResult);
-		calendarInit(tpac.icsUrl, argv.calendar);
+		const calDownloaded = calendarInit(tpac.icsUrl, argv.calendar);
 		const combine = makeEquivalents(argv.combine);
 		if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
 			alternatives: argv.alternatives,
+			calDownloaded,
 			combine,
 			dayInfo: tpac.days,
 			issues,
@@ -1142,6 +1150,7 @@ function main() {
 		}));
 		if (argv.outputSchedule) write(argv.outputSchedule, "scheduling info", doScheduling({
 			alternatives: argv.alternatives,
+			calDownloaded,
 			combine,
 			dayInfo: tpac.days,
 			issues

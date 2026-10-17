@@ -45,6 +45,7 @@ type MeetingCardHeaderArgs =
 		}
 
 interface BaseOutputInfo {
+	calDownloaded: Date
 	toolName: string
 	toolUrl: string
 	style: string
@@ -104,6 +105,7 @@ let headingCounter = 0
 
 export function makeMeetingListPage({
 	allMeetings,
+	calDownloaded,
 	meetingsWithBookings,
 	dayInfo,
 	toolName,
@@ -130,7 +132,7 @@ export function makeMeetingListPage({
 			<main>`
 
 	const htmlEnd = `</main>
-		${footer(toolName, toolUrl)}
+		${footer(toolName, toolUrl, calDownloaded)}
 		<script>${fs.readFileSync(script, 'utf-8')}</script>
 		</body></html>`
 
@@ -172,6 +174,7 @@ export function makeMeetingListPage({
 }
 
 export function makeSchedulingPage({
+	calDownloaded,
 	cancelledMeetings,
 	dayMeetings,
 	haveDefinitelyClashing,
@@ -268,7 +271,7 @@ export function makeSchedulingPage({
 			</nav>
 			<main>`
 	const htmlEnd = `</main>
-		${footer(toolName, toolUrl)}
+		${footer(toolName, toolUrl, calDownloaded)}
 		</body></html>`
 
 	let html = htmlStart + `<section aria-labelledby="${groupResultsId}">
@@ -704,6 +707,6 @@ function idFor(num: number, kind: 'heading' | 'button' | 'repo' | 'booking') {
 	return `${kind}-${String(num)}`
 }
 
-function footer(toolName: string, toolUrl: string): string {
-	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${new Date().toUTCString()}.</p></footer>`
+function footer(toolName: string, toolUrl: string, calDownloaded: Date): string {
+	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${new Date().toUTCString()}. Calendar downloaded on ${calDownloaded.toUTCString()}.</p></footer>`
 }
