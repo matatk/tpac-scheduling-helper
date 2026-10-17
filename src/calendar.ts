@@ -49,12 +49,14 @@ export function isCalendarMeeting(cm: object): cm is CalendarMeeting {
 	return false
 }
 
-export function calendarInit(calendarUrl: string, localFile: string) {
-	const calendar = convertIcsCalendar(undefined, getSchedule(calendarUrl, localFile))
+export function calendarInit(calendarUrl: string, localFile: string): Date {
+	const { downloaded, content } = getSchedule(calendarUrl, localFile)
+	const calendar = convertIcsCalendar(undefined, content)
 	// TODO: can do this with reduce and build the thing in this scope, as with the 'iterator' below?
 	for (const event of calendar.events ?? []) {
 		icsEvents[event.uid] = event
 	}
+	return downloaded
 }
 
 export function calendarMeeting(uid: string): CalendarMeeting | CalendarMeetingNonexistent {
@@ -77,7 +79,7 @@ export function calendarMeetingsZipped(plannedMeetings: Record<string, Partial<M
 	return { allMeetings, meetingsWithBookings }
 }
 
-function getSchedule(scheduleUrl: string, path: string) {
+function getSchedule(scheduleUrl: string, path: string): { downloaded: Date, content: string } {
 	if (!fs.existsSync(path)) {
 		console.log('Downloading schedule from:', scheduleUrl)
 		const child = spawnSync('curl', [ scheduleUrl, '-o', path ])
@@ -85,7 +87,10 @@ function getSchedule(scheduleUrl: string, path: string) {
 			throw new Error(child.stderr.toString())
 		}
 	}
-	return fs.readFileSync(path, 'utf-8')
+	return {
+		downloaded: fs.statSync(path).mtime,
+		content: fs.readFileSync(path, 'utf-8'),
+	}
 }
 
 function getTime(date?: Date) {
