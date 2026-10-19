@@ -55,7 +55,7 @@ const TPACs: Tpacs = {
 			monday: {
 				midnight: new Temporal.PlainDateTime(2026, 10, 26),
 				   start: new Temporal.PlainDateTime(2026, 10, 26, 8),
-				     end: new Temporal.PlainDateTime(2026, 10, 26, 18),
+				     end: new Temporal.PlainDateTime(2026, 10, 26, 22, 30),
 			},
 			tuesday: {
 				midnight: new Temporal.PlainDateTime(2026, 10, 27),
@@ -65,7 +65,7 @@ const TPACs: Tpacs = {
 			wednesday: {
 				midnight: new Temporal.PlainDateTime(2026, 10, 28),
 				   start: new Temporal.PlainDateTime(2026, 10, 28, 8),
-				     end: new Temporal.PlainDateTime(2026, 10, 28, 18),
+				     end: new Temporal.PlainDateTime(2026, 10, 28, 21),
 			},
 			thursday: {
 				midnight: new Temporal.PlainDateTime(2026, 10, 29),
