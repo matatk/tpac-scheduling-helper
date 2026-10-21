@@ -359,17 +359,18 @@ const BEFORE_TPAC_ID = "before";
 const BEFORE_TPAC_HEADING = "Before TPAC";
 const UNKNOWN_PROPERTY = "???";
 let headingCounter = 0;
-function makeMeetingListPage({ allMeetings, calDownloaded, meetingsWithBookings, dayInfo, toolName, toolUrl, repos, script, style }) {
+function makeMeetingListPage({ allMeetings, calDownloaded, meetingsWithBookings, dayInfo, toolName, toolUrl, repos, script, style, title }) {
+	const myTitle = makeTitle(toolName, "plan", title);
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${toolName}</title>
+			<title>${myTitle}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, "utf-8")}</style>
 		</head>
 		<body>
 			<header>
-				<h1>${toolName}: Full Meeting List</h1>
+				<h1>${myTitle}</h1>
 			</header>
 			<nav>
 				<h2>Meeting Days</h2>
@@ -404,7 +405,7 @@ function makeMeetingListPage({ allMeetings, calDownloaded, meetingsWithBookings,
 		return acc;
 	}, "") + htmlEnd;
 }
-function makeSchedulingPage({ calDownloaded, cancelledMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, unassignedMeetings, validMeetings }) {
+function makeSchedulingPage({ calDownloaded, cancelledMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, invalidMeetings, movedMeetings, toolName, toolUrl, peopleDefinitelyClashingMeetings, peopleNearlyClashingMeetings, personDayGaps, personDayMeetings, repoPossibleDuplicates, style, title, unassignedMeetings, validMeetings }) {
 	const haveInvalid = invalidMeetings.length > 0;
 	const haveMeetings = validMeetings.length > 0;
 	const haveMoved = movedMeetings.length > 0;
@@ -437,17 +438,18 @@ function makeSchedulingPage({ calDownloaded, cancelledMeetings, dayMeetings, hav
 	const nearlyClashingHeading = "Nearly clashing meetings";
 	const timetableId = "timetable";
 	const timetableHeading = "Timetable";
+	const myTitle = makeTitle(toolName, "schedule", title);
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${toolName}</title>
+			<title>${myTitle}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, "utf-8")}</style>
 			${peopleSelectorStyle(personDayMeetings)}
 		</head>
 		<body>
 			<header>
-				<h1>${toolName}: Group Timetabling</h1>
+				<h1>${myTitle}</h1>
 			</header>
 			<nav aria-labelledby="${navFilteringId}">
 				<h2 id=${navFilteringId}>${navFilteringHeading}</h2>
@@ -488,6 +490,10 @@ function makeSchedulingPage({ calDownloaded, cancelledMeetings, dayMeetings, hav
 	html += sectionWithLandmark(3, false, timetableId, timetableHeading, timetable(personDayMeetings, personDayGaps));
 	html += "</section>";
 	return html + htmlEnd;
+}
+function makeTitle(toolName, mode, title) {
+	const most = (mode === "plan" ? "Planning" : "Scheduling") + " - " + toolName;
+	return title ? title + " - " + most : most;
 }
 function meetingListDayLinks() {
 	return "<ul>" + [BEFORE_TPAC_ID].concat(days).map((occasion) => `<li><p><a href="#${occasion}">
@@ -952,7 +958,7 @@ function processSchedule(dayInfo, alternatives, validMeetings) {
 }
 //#endregion
 //#region tsh.ts
-const MY_NAME = "TPAC scheduling helper";
+const MY_NAME = "TPAC Scheduling Helper";
 const MY_URL = "https://github.com/matatk/tpac-scheduling-helper";
 const STYLE_FILE = path.join("static", "style.css");
 const SCRIPT_FILE = path.join("static", "create-issue.js");
@@ -993,7 +999,7 @@ function makeEquivalents(combine) {
 	if (combine) for (const [name, otherName] of combine) equivalents.set(name, otherName);
 	return equivalents;
 }
-function generateMeetingList({ alternatives, calDownloaded, combine, dayInfo, issues, repos }) {
+function generateMeetingList({ alternatives, calDownloaded, combine, dayInfo, issues, repos, title }) {
 	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(issues.reduce((acc, issue) => {
 		const meeting = meetingFromIssue(dayInfo, calendarMeeting, combine, issue);
 		if (meeting.id && plannedByUs(alternatives, meeting)) {
@@ -1011,10 +1017,11 @@ function generateMeetingList({ alternatives, calDownloaded, combine, dayInfo, is
 		toolUrl: MY_URL,
 		repos,
 		script: pathFromPackageRoot(SCRIPT_FILE),
-		style: pathFromPackageRoot(STYLE_FILE)
+		style: pathFromPackageRoot(STYLE_FILE),
+		title
 	});
 }
-function doScheduling({ alternatives, calDownloaded, combine, dayInfo, issues }) {
+function doScheduling({ alternatives, calDownloaded, combine, dayInfo, issues, title }) {
 	const { validMeetings, cancelledMeetings, movedMeetings, invalidMeetings, unassignedMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, combine, issue))), alternatives);
 	const { repoPossibleDuplicates, peopleNearlyClashingMeetings, peopleDefinitelyClashingMeetings, personDayMeetings, dayMeetings, haveDefinitelyClashing, haveNearlyClashing, personDayGaps } = processSchedule(dayInfo, alternatives, validMeetings);
 	return makeSchedulingPage({
@@ -1034,7 +1041,8 @@ function doScheduling({ alternatives, calDownloaded, combine, dayInfo, issues })
 		personDayGaps,
 		style: pathFromPackageRoot(STYLE_FILE),
 		toolName: MY_NAME,
-		toolUrl: MY_URL
+		toolUrl: MY_URL,
+		title
 	});
 }
 function main() {
@@ -1097,6 +1105,11 @@ function main() {
 			type: "string",
 			array: true,
 			description: "Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n"
+		},
+		title: {
+			alias: "t",
+			type: "string",
+			description: "Include this in the HTML output (useful to distinguish between groups' schedules)\n"
 		}
 	}).coerce("repo", (repo) => {
 		if (Array.isArray(repo) && repo.length <= 2 && repo.every((value) => typeof value === "string")) return [repo];
@@ -1125,7 +1138,7 @@ function main() {
 		"gh",
 		"alternatives",
 		"combine"
-	], "Issue/filtering options:").group([
+	], "Issue/filtering options:").group(["title"], "Output niceties:").group([
 		"save-result",
 		"query-result",
 		"year"
@@ -1151,14 +1164,16 @@ function main() {
 			combine,
 			dayInfo: tpac.days,
 			issues,
-			repos
+			repos,
+			title: argv.title
 		}));
 		if (argv.outputSchedule) write(argv.outputSchedule, "scheduling info", doScheduling({
 			alternatives: argv.alternatives,
 			calDownloaded,
 			combine,
 			dayInfo: tpac.days,
-			issues
+			issues,
+			title: argv.title
 		}));
 		if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));
 	}).command("members", "Try to find group members via their GitHub Team access to a given repo", (yargs) => yargs.options({

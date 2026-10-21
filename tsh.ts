@@ -27,7 +27,7 @@ export interface RepoSpec {
 	personal?: string // FIXME: make always
 }
 
-const MY_NAME = 'TPAC scheduling helper'
+const MY_NAME = 'TPAC Scheduling Helper'
 const MY_URL = 'https://github.com/matatk/tpac-scheduling-helper'
 const STYLE_FILE = path.join('static', 'style.css')
 const SCRIPT_FILE = path.join('static', 'create-issue.js')
@@ -41,6 +41,7 @@ interface BaseArgs {
 	combine: CombineNames
 	dayInfo: TpacDayInfo
 	issues: GhIssue[]
+	title?: string // TODO: avoid the need for this to be here
 }
 
 interface GenerateMeetingListArgs extends BaseArgs {
@@ -106,6 +107,7 @@ function generateMeetingList({
 	dayInfo,
 	issues,
 	repos,
+	title,
 }: GenerateMeetingListArgs): string {
 	// NOTE: This includes invalid ones
 	const plannedMeetings = issues.reduce(
@@ -123,6 +125,7 @@ function generateMeetingList({
 
 	const { allMeetings, meetingsWithBookings } = calendarMeetingsZipped(plannedMeetings)
 
+	// TODO: could move this further up and then wouldn't have to pass stuff around as much (like title)
 	const html = makeMeetingListPage({
 		allMeetings,
 		calDownloaded,
@@ -133,6 +136,7 @@ function generateMeetingList({
 		repos,
 		script: pathFromPackageRoot(SCRIPT_FILE),
 		style: pathFromPackageRoot(STYLE_FILE),
+		title,
 	})
 
 	return html
@@ -144,6 +148,7 @@ function doScheduling({
 	combine,
 	dayInfo,
 	issues,
+	title,
 }: BaseArgs): string {
 	// FIXME: DRY: Can we do this one level up to avoid duplicating work in the case that we are generating both pages?
 	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, combine, issue)))
@@ -187,6 +192,7 @@ function doScheduling({
 		style: pathFromPackageRoot(STYLE_FILE),
 		toolName: MY_NAME,
 		toolUrl: MY_URL,
+		title,
 	})
 
 	return html
@@ -259,6 +265,11 @@ function main() {
 						array: true,
 						description: 'Pairs of GitHub usernames to consider equivalent. Useful for if you are querying across public and enterprise GitHub instances. The first name in the pair will be overridden by the second.\n',
 					},
+					title: {
+						alias: 't',
+						type: 'string',
+						description: "Include this in the HTML output (useful to distinguish between groups' schedules)\n",
+					},
 				})
 				.coerce('repo', repo => {
 					if (Array.isArray(repo)
@@ -307,6 +318,7 @@ function main() {
 				.example('--combine TopSecretAnna PublicAnna', 'Any instance of TopSecretAnna will be considered as PublicAnna.\n')
 				.group([ 'calendar', 'repo', 'output-plan', 'output-schedule' ], 'Vital info:')
 				.group([ 'label', 'gh', 'alternatives', 'combine' ], 'Issue/filtering options:')
+				.group([ 'title' ], 'Output niceties:')
 				.group([ 'save-result', 'query-result', 'year' ], 'Testing and debugging options:')
 				.group([ 'help', 'version' ], 'Workhorses:'),
 			argv => {
@@ -349,6 +361,7 @@ function main() {
 						dayInfo: tpac.days,
 						issues,
 						repos,
+						title: argv.title,
 					}))
 				}
 
@@ -359,6 +372,7 @@ function main() {
 						combine,
 						dayInfo: tpac.days,
 						issues,
+						title: argv.title,
 					}))
 				}
 

@@ -46,6 +46,7 @@ type MeetingCardHeaderArgs =
 
 interface BaseOutputInfo {
 	calDownloaded: Date
+	title?: string
 	toolName: string
 	toolUrl: string
 	style: string
@@ -113,17 +114,19 @@ export function makeMeetingListPage({
 	repos,
 	script,
 	style,
+	title,
 }: MeetingListPageOutputInfo): string {
+	const myTitle = makeTitle(toolName, 'plan', title)
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${toolName}</title>
+			<title>${myTitle}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, 'utf-8')}</style>
 		</head>
 		<body>
 			<header>
-				<h1>${toolName}: Full Meeting List</h1>
+				<h1>${myTitle}</h1>
 			</header>
 			<nav>
 				<h2>Meeting Days</h2>
@@ -189,6 +192,7 @@ export function makeSchedulingPage({
 	personDayMeetings,
 	repoPossibleDuplicates,
 	style,
+	title,
 	unassignedMeetings,
 	validMeetings,
 }: SchedulingPageOutputInfo): string {
@@ -238,17 +242,18 @@ export function makeSchedulingPage({
 	const timetableId = 'timetable'
 	const timetableHeading = 'Timetable'
 
+	const myTitle = makeTitle(toolName, 'schedule', title)
 	const htmlStart = `<!DOCTYPE html>
 		<head>
 			<meta charset="utf-8">
-			<title>${toolName}</title>
+			<title>${myTitle}</title>
 			<meta name="color-scheme" content="dark light" />
 			<style>${fs.readFileSync(style, 'utf-8')}</style>
 			${peopleSelectorStyle(personDayMeetings)}
 		</head>
 		<body>
 			<header>
-				<h1>${toolName}: Group Timetabling</h1>
+				<h1>${myTitle}</h1>
 			</header>
 			<nav aria-labelledby="${navFilteringId}">
 				<h2 id=${navFilteringId}>${navFilteringHeading}</h2>
@@ -308,6 +313,11 @@ export function makeSchedulingPage({
 	html += '</section>'
 
 	return html + htmlEnd
+}
+
+function makeTitle(toolName: string, mode: 'plan' | 'schedule', title?: string): string {
+	const most = (mode === 'plan'	? 'Planning' : 'Scheduling') + ' - ' + toolName
+	return title ? title + ' - ' + most : most
 }
 
 function meetingListDayLinks() {
