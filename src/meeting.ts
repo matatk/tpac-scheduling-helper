@@ -143,12 +143,17 @@ export function categoriseMeetings(allMeetings: Partial<Meeting>[], alternatives
 	for (const meeting of allMeetings) {
 		if (isMeeting(meeting)) {
 			if (meeting.status === 'cancelled') {
+				// FIXME: it might actually be unassigned, but in the repo(s) we're most interested in, and therefore still of interest that it's cancelled.
 				if (plannedByUs(alternatives, meeting)) cancelledMeetings.push(meeting)
 			} else {
 				// FIXME: it may've been planned by another group (another repo) but we don't have a concept of 'our' repo yet, so leave this in. We only have a concept of to whom the meeting is of interest.
 				if (meeting.names.length === 0) {
 					unassignedMeetings.push(meeting)
-				} else if (plannedByUs(alternatives, meeting)) {
+					// FIXME: remove the need for this (it stops the problem of borken links to unassigned meetings):
+					if (!plannedByUs(alternatives, meeting)) validMeetings.push(meeting)
+				}
+
+				if (plannedByUs(alternatives, meeting)) {
 					validMeetings.push(meeting)
 					if (meeting.match === 'mismatch') movedMeetings.push(meeting)
 				}
