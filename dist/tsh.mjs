@@ -243,10 +243,15 @@ function categoriseMeetings(allMeetings, alternatives) {
 	for (const meeting of allMeetings) if (isMeeting(meeting)) {
 		if (meeting.status === "cancelled") {
 			if (plannedByUs(alternatives, meeting)) cancelledMeetings.push(meeting);
-		} else if (meeting.names.length === 0) unassignedMeetings.push(meeting);
-		else if (plannedByUs(alternatives, meeting)) {
-			validMeetings.push(meeting);
-			if (meeting.match === "mismatch") movedMeetings.push(meeting);
+		} else {
+			if (meeting.names.length === 0) {
+				unassignedMeetings.push(meeting);
+				if (!plannedByUs(alternatives, meeting)) validMeetings.push(meeting);
+			}
+			if (plannedByUs(alternatives, meeting)) {
+				validMeetings.push(meeting);
+				if (meeting.match === "mismatch") movedMeetings.push(meeting);
+			}
 		}
 	} else invalidMeetings.push(meeting);
 	sort(validMeetings);
@@ -733,7 +738,7 @@ function possibleDuplicates(rdm) {
 function unassignedList(unassigned) {
 	let html = "";
 	html += "<ul>";
-	for (const meeting of unassigned) html += `<li><p>${inlineSummary(meeting, true)}</p></li>`;
+	for (const meeting of unassigned) html += `<li><p>${inlineSummary(meeting, true)}</p>${alternativesOrNot(meeting)}</li>`;
 	html += "</ul>";
 	return html;
 }

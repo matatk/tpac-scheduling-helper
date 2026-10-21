@@ -658,7 +658,7 @@ function unassignedList(unassigned: Meeting[]): string {
 	let html = ''
 	html += '<ul>'
 	for (const meeting of unassigned) {
-		html += `<li><p>${inlineSummary(meeting, true)}</p></li>`
+		html += `<li><p>${inlineSummary(meeting, true)}</p>${alternativesOrNot(meeting)}</li>`
 	}
 	html += '</ul>'
 	return html
