@@ -1142,8 +1142,8 @@ function main() {
 			return acc;
 		}, []) ?? [];
 		const tpac = TPACs[argv.year];
-		const issues = getIssues(argv.gh, repos, argv.queryResult);
 		const calDownloaded = calendarInit(tpac.icsUrl, argv.calendar);
+		const issues = getIssues(argv.gh, repos, argv.queryResult);
 		const combine = makeEquivalents(argv.combine);
 		if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
 			alternatives: argv.alternatives,

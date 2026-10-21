@@ -336,8 +336,8 @@ function main() {
 				}, []) ?? []
 
 				const tpac = TPACs[(argv as ProgArgs).year]
-				const issues = getIssues(argv.gh, repos, argv.queryResult)
 				const calDownloaded = calendarInit(tpac.icsUrl, argv.calendar)
+				const issues = getIssues(argv.gh, repos, argv.queryResult)
 
 				const combine = makeEquivalents(argv.combine)
 
