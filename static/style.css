@@ -3,7 +3,7 @@
 	line-height: 1.5;
 	font-size: 1.2rem;
 
-	--default: grey;
+	--default: darkgrey;
 	--cancelled: var(--default);
 	--invalid: red;
 	--match-exact: green;
