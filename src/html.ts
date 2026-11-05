@@ -684,11 +684,13 @@ function notes(meeting: Partial<Meeting>): string {
 	return ''
 }
 
-function people(names: string[]): string {
+// FIXME: move this away from html into a general output funcs file, as it is used by MD too
+export function people(names: string[]): string {
 	return names.join(', ')
 }
 
-function dtf(pdt?: Temporal.PlainDateTime): string {
+// FIXME: move this away from html into a general output funcs file, as it is used by MD too
+export function dtf(pdt?: Temporal.PlainDateTime): string {
 	return pdt
 		? pdt.toLocaleString(undefined, {
 			hourCycle: 'h23',
@@ -698,7 +700,8 @@ function dtf(pdt?: Temporal.PlainDateTime): string {
 		: UNKNOWN_PROPERTY
 }
 
-function pretty(thing?: string): string {
+// FIXME: move this away from html into a general output funcs file, as it is used by MD too
+export function pretty(thing?: string): string {
 	return thing
 		? thing.charAt(0).toUpperCase() + thing.slice(1)
 		: UNKNOWN_PROPERTY

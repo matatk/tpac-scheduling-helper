@@ -24,6 +24,8 @@ export interface Meeting extends CalendarMeeting {
 	alternatives: string[]
 	notes?: string
 	personal?: boolean
+	reportMetadata?: string  // FIXME: doc: expected to be a bullet list
+	report?: string
 }
 
 interface CategorisedMeetings {

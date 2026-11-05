@@ -11,10 +11,11 @@ import yargs from 'yargs'
 import TPACs, { tpacYears } from './src/tpacs.ts'
 import { calendarInit, calendarMeeting, calendarMeetingsZipped } from './src/calendar.ts'
 import { categoriseMeetings, plannedByUs } from './src/meeting.ts'
+import { dtf, makeMeetingListPage, makeSchedulingPage, pretty } from './src/html.ts'
 import { getMembers, queryIssues } from './src/query-issues.ts'
-import { makeMeetingListPage, makeSchedulingPage } from './src/html.ts'
 import meetingFromIssue from './src/meeting-from-issue.ts'
 import processSchedule from './src/scheduling.ts'
+import { repoFromIssueUrl } from './src/repo.ts'
 
 import type { TpacDayInfo, TpacYear } from './src/tpacs.ts'
 import type { CombineNames } from './src/scheduling.ts'
@@ -37,14 +38,22 @@ type CombineNamesArgs = [string, string][]
 
 interface BaseArgs {
 	alternatives: string[]
-	calDownloaded: Date
 	combine: CombineNames
 	dayInfo: TpacDayInfo
 	issues: GhIssue[]
 	title?: string // TODO: avoid the need for this to be here
 }
 
-interface GenerateMeetingListArgs extends BaseArgs {
+interface GenerateMeetingReportArgs extends BaseArgs {
+	year: number
+	focus?: string  // FIXME: this needs to be made general
+}
+
+interface DoSchedulingArgs extends BaseArgs {
+	calDownloaded: Date
+}
+
+interface GenerateMeetingListArgs extends DoSchedulingArgs {
 	repos: RepoSpec[]
 }
 
@@ -69,7 +78,7 @@ function pathFromPackageRoot(partial: string) {
 	throw new Error("Couldn't find static assets.")
 }
 
-function getIssues(gh: string, repos: RepoSpec[], queryResult?: string) {
+function getIssues(gh: string, repos: RepoSpec[], queryResult?: string, includeComments?: boolean) {
 	const issues: GhIssue[] = []
 
 	if (queryResult) {
@@ -79,7 +88,7 @@ function getIssues(gh: string, repos: RepoSpec[], queryResult?: string) {
 		console.log('Querying repo(s) with gh...')
 		for (const { repo, label } of repos) {
 			try {
-				issues.push(...queryIssues(gh, repo, label))
+				issues.push(...queryIssues(gh, repo, label, includeComments))
 			} catch (err) {
 				errorOut(err)
 			}
@@ -149,7 +158,7 @@ function doScheduling({
 	dayInfo,
 	issues,
 	title,
-}: BaseArgs): string {
+}: DoSchedulingArgs): string {
 	// FIXME: DRY: Can we do this one level up to avoid duplicating work in the case that we are generating both pages?
 	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, combine, issue)))
 
@@ -198,6 +207,98 @@ function doScheduling({
 	return html
 }
 
+function generateMeetingReport({
+	alternatives,
+	combine,
+	dayInfo,
+	focus,
+	issues,
+	title,
+	year,
+}: GenerateMeetingReportArgs): string {
+	// FIXME: DRY: Can we do this one level up to avoid duplicating work in the case that we are generating both pages?
+	const allMeetings = issues.map((issue => meetingFromIssue(dayInfo, calendarMeeting, combine, issue)))
+
+	// NOTE: These are returned having been filtered for relevance to the given alternative attendees, except for unassigned meetings, as we can't know in that case :-).
+	const {
+		validMeetings,
+		// All of the rest are only used in the output stage
+	} = categoriseMeetings(allMeetings, alternatives)
+
+	// TODO: Use html/makeTitle instead?
+	const realTitle = (title ? `${title} - ` : '') + `TPAC ${String(year)} Report`
+	let out = `---\ntitle: ${realTitle}\n---\n\n`
+	let unassignedMeetingInfo = ''
+	let unassignedCount = 0
+	let unfocusedMeetingInfo = ''
+	let unfocusedCount = 0
+
+	for (const meeting of validMeetings) {
+		const ourPeopleAttending = meeting.names.filter(name => alternatives.includes(name))
+
+		if (ourPeopleAttending.length === 0 && !meeting.report) {
+			unassignedCount += 1
+			unassignedMeetingInfo += '| ' +
+				'U-' + String(unassignedCount) + ' | ' +
+				repoFromIssueUrl(meeting.issueUrl) + '|' +
+				meeting.title + ' | ' +
+				'<' + meeting.issueUrl + '> |\n'
+			continue
+		}
+
+		if (focus && repoFromIssueUrl(meeting.issueUrl) !== focus) {
+			unfocusedCount += 1
+			unfocusedMeetingInfo += '| ' +
+				'O-' + String(unfocusedCount) + ' | ' +
+				repoFromIssueUrl(meeting.issueUrl) + '|' +
+				meeting.title + ' | ' +
+				'<' + meeting.issueUrl + '> |\n'
+			continue
+		}
+
+		const heading = meeting.calendarTitle +
+			(meeting.title === meeting.calendarTitle ? '' : ` [${meeting.title}]`)
+
+		const ourPeopleList = ourPeopleAttending.map(name => `* ${name}`)
+
+		const dayTime =
+			pretty(meeting.calendarDay) + ', ' +
+			dtf(meeting.calendarStart) + ' - ' + dtf(meeting.calendarEnd)
+
+		out += `# ${heading}\n\n`
+
+		out += 'Metadata:\n\n'
+		out += `* [W3C Calendar entry](${meeting.calendarUrl}) (${dayTime})\n`
+		out += `* [Scheduling issue in ${repoFromIssueUrl(meeting.issueUrl)}](${meeting.issueUrl})\n`
+		out += (meeting.reportMetadata ?? '') + '\n\n'
+
+		out += 'Attending from our group:\n\n'
+		out += (ourPeopleList.length ? ourPeopleList.join('\n') : '* (none of us)') + '\n\n'
+
+		out += (meeting.report ?? '(no report)') + '\n\n'
+	}
+
+	if (unassignedMeetingInfo.length > 0) {
+		unassignedMeetingInfo =
+			'# Info on unassigned meetings\n\n'.toUpperCase() +
+			'This section can be deleted once you have satisfied yourself that all important unassigned meetings have been brought into this repo, if needed, and adequately reported on.\n\n' +
+			'| ID | Repo | Meeting title | Booking issue URL |\n' +
+			'|----|------|---------------|-------------------|\n' +
+			unassignedMeetingInfo
+	}
+
+	if (unfocusedMeetingInfo.length > 0) {
+		unfocusedMeetingInfo =
+			'# Info on meetings from other repos\n\n'.toUpperCase() +
+			'This section can be deleted once you have satisfied yourself that all important meetings from other repos have been brought into this repo, and adequately reported on.\n\n' +
+			'| ID | Repo | Meeting title | Booking issue URL |\n' +
+			'|----|------|---------------|-------------------|\n' +
+			unfocusedMeetingInfo
+	}
+
+	return unassignedMeetingInfo + unfocusedMeetingInfo + out
+}
+
 function main() {
 	return yargs(hideBin(process.argv)).parserConfiguration({
 		'flatten-duplicate-arrays': false,
@@ -224,6 +325,11 @@ function main() {
 						alias: 's',
 						type: 'string',
 						description: 'Path to a local HTML file to create (or overwrite) with info on your planned meetings, and possible clashes.\n',
+					},
+					'output-report': {
+						alias: 'R',
+						type: 'string',
+						description: 'Path to a local Markdown file to create (or overwrite) with your event report.\n',
 					},
 					year: {
 						alias: 'y',
@@ -288,12 +394,13 @@ function main() {
 					}
 					return combine as CombineNamesArgs
 				})
+				.conflicts('repo', 'query-result')
 				.check(args => {
-					for (const [ one, other ] of [ [ 'repo', 'query-result' ], [ 'output-plan', 'output-schedule' ] ]) {
-						if (args[one!] === undefined && args[other!] === undefined) {
-							throw new Error(`One of '--${one!}' and '--${other!}' must be supplied.`)
-						}
-					}
+					const outputs = [ 'output-plan', 'output-schedule', 'output-report' ]
+					const count = outputs.reduce((acc, cur) => {
+						return args[cur] !== undefined ? acc + 1 : acc
+					}, 0)
+					if (count < 1) throw new Error(`At least one of the output options (${outputs.join(', ')}) must be specified.`)
 					return true
 				})
 				.check(args => {
@@ -327,6 +434,7 @@ function main() {
 					| 'combine'
 					| 'outputPlan'
 					| 'outputSchedule'
+					| 'outputReport'
 					| 'repo'
 					| 'year'
 				> & {
@@ -334,6 +442,7 @@ function main() {
 					combine?: CombineNamesArgs
 					outputPlan: string
 					outputSchedule: string
+					outputReport: string
 					repo?: RepoSpecRaw[]
 					year: TpacYear
 				}
@@ -349,7 +458,7 @@ function main() {
 
 				const tpac = TPACs[(argv as ProgArgs).year]
 				const calDownloaded = calendarInit(tpac.icsUrl, argv.calendar)
-				const issues = getIssues(argv.gh, repos, argv.queryResult)
+				const issues = getIssues(argv.gh, repos, argv.queryResult, !!argv.outputReport)
 
 				const combine = makeEquivalents(argv.combine)
 
@@ -373,6 +482,18 @@ function main() {
 						dayInfo: tpac.days,
 						issues,
 						title: argv.title,
+					}))
+				}
+
+				if (argv.outputReport) {
+					write((argv as ProgArgs).outputReport, 'report', generateMeetingReport({
+						alternatives: (argv as ProgArgs).alternatives,
+						combine,
+						dayInfo: tpac.days,
+						focus: repos[0]?.repo,
+						issues,
+						title: argv.title,
+						year: (argv as ProgArgs).year,
 					}))
 				}
 

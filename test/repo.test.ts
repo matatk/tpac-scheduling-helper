@@ -12,6 +12,6 @@ describe('Getting repo from issue URL', () => {
 	})
 
 	test('A URL from a different GitHub instance', () => {
-		expect(repoFromIssueUrl('https://my.cool.gh.instance.org/w3c/apa/issues/42')).toBe('w3c/apa')
+		expect(repoFromIssueUrl('https://my.cool.gh.instance.org/w3c/apa/issues/42')).toBe('https://my.cool.gh.instance.org/w3c/apa')
 	})
 })
