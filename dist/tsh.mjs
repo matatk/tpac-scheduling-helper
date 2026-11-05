@@ -266,75 +266,10 @@ function categoriseMeetings(allMeetings, alternatives) {
 	};
 }
 //#endregion
-//#region src/query-issues.ts
-function doIt(gh, args, label, processor) {
-	if (label) args.push("--label", label);
-	console.log(gh, args.join(" "));
-	const child = spawnSync(gh, args);
-	if (child.error || child.stderr.length > 0) throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`);
-	try {
-		const basic = child.stdout.toString().trim();
-		return processor ? processor(basic) : basic;
-	} catch (err) {
-		throw new Error("Parsing GitHub API result: " + String(err instanceof Error ? err.message : err), { cause: err });
-	}
-}
-function queryIssues(gh, repo, label) {
-	return doIt(gh, [
-		"--repo",
-		repo,
-		"issue",
-		"list",
-		"--json",
-		"assignees,body,title,url,labels",
-		"--limit",
-		"999"
-	], label, JSON.parse);
-}
-function getMembers(gh, org, repo, all) {
-	let teams;
-	const getTeams = [
-		"api",
-		"--paginate",
-		`repos/${org}/${repo}/teams`
-	];
-	const jqScript = "[ .[].login ] | join(\" \")";
-	const getMembers = (team, quoteJq = false) => [
-		"api",
-		"--paginate",
-		`orgs/${org}/teams/${team}/members`,
-		"--jq",
-		quoteJq ? `'${jqScript}'` : jqScript
-	];
-	try {
-		teams = doIt(gh, getTeams, void 0, JSON.parse).map((team) => team.slug);
-	} catch (err) {
-		console.error("Unable to get teams list from GitHub API; you may not have permission.", err);
-		return;
-	}
-	console.log("Found teams", teams);
-	const candidates = teams.filter((team) => team.includes("members"));
-	const likely = candidates.length === 1 ? candidates[0] : null;
-	if (all) {
-		console.log("Getting members from all teams associated with the repo...");
-		const allMembers = [];
-		for (const team of teams) allMembers.push(...doIt(gh, getMembers(team)).split(" "));
-		console.log(`Found group members (all teams):\n\n${allMembers.sort().join(" ")}`);
-	} else if (likely) {
-		console.log("Found expcted team of repo members:", likely, "\n");
-		const members = doIt(gh, getMembers(likely)).split(" ").sort().join(" ");
-		console.log(`Found group members:\n\n${members}`);
-	} else {
-		console.error(`Couldn't find a likely team of members for repo: ${repo}.`);
-		console.log("You could try the following commands to list group members, if you have access...\n");
-		for (const team of teams) console.log(`${gh} ${getMembers(team, true).join(" ")}`);
-		console.log("\n...or, you could use the --all option to fetch all members from these teams.");
-	}
-}
-//#endregion
 //#region src/repo.ts
 function repoFromIssueUrl(issueUrl) {
-	const repo = issueUrl.split("/").slice(-4, -2).join("/");
+	const from = issueUrl.startsWith("https://github.com/") ? -4 : 0;
+	const repo = issueUrl.split("/").slice(from, -2).join("/");
 	return repo.length > 0 ? repo : void 0;
 }
 //#endregion
@@ -782,6 +717,74 @@ function footer(toolName, toolUrl, calDownloaded) {
 	return `<footer><p>Generated with <a href="${toolUrl}">${toolName}</a> on ${(/* @__PURE__ */ new Date()).toUTCString()}. Calendar downloaded on ${calDownloaded.toUTCString()}.</p></footer>`;
 }
 //#endregion
+//#region src/query-issues.ts
+function doIt(gh, args, label, processor) {
+	if (label) args.push("--label", label);
+	console.log(gh, args.join(" "));
+	const child = spawnSync(gh, args);
+	if (child.error || child.stderr.length > 0) throw new Error(`gh: ${child.error?.message ?? child.stderr.toString()}`);
+	try {
+		const basic = child.stdout.toString().trim();
+		return processor ? processor(basic) : basic;
+	} catch (err) {
+		throw new Error("Parsing GitHub API result: " + String(err instanceof Error ? err.message : err), { cause: err });
+	}
+}
+function queryIssues(gh, repo, label, comments) {
+	let jsonFields = "assignees,body,title,url,labels";
+	if (comments) jsonFields += ",comments";
+	return doIt(gh, [
+		"--repo",
+		repo,
+		"issue",
+		"list",
+		"--json",
+		jsonFields,
+		"--limit",
+		"999"
+	], label, JSON.parse);
+}
+function getMembers(gh, org, repo, all) {
+	let teams;
+	const getTeams = [
+		"api",
+		"--paginate",
+		`repos/${org}/${repo}/teams`
+	];
+	const jqScript = "[ .[].login ] | join(\" \")";
+	const getMembers = (team, quoteJq = false) => [
+		"api",
+		"--paginate",
+		`orgs/${org}/teams/${team}/members`,
+		"--jq",
+		quoteJq ? `'${jqScript}'` : jqScript
+	];
+	try {
+		teams = doIt(gh, getTeams, void 0, JSON.parse).map((team) => team.slug);
+	} catch (err) {
+		console.error("Unable to get teams list from GitHub API; you may not have permission.", err);
+		return;
+	}
+	console.log("Found teams", teams);
+	const candidates = teams.filter((team) => team.includes("members"));
+	const likely = candidates.length === 1 ? candidates[0] : null;
+	if (all) {
+		console.log("Getting members from all teams associated with the repo...");
+		const allMembers = [];
+		for (const team of teams) allMembers.push(...doIt(gh, getMembers(team)).split(" "));
+		console.log(`Found group members (all teams):\n\n${allMembers.sort().join(" ")}`);
+	} else if (likely) {
+		console.log("Found expcted team of repo members:", likely, "\n");
+		const members = doIt(gh, getMembers(likely)).split(" ").sort().join(" ");
+		console.log(`Found group members:\n\n${members}`);
+	} else {
+		console.error(`Couldn't find a likely team of members for repo: ${repo}.`);
+		console.log("You could try the following commands to list group members, if you have access...\n");
+		for (const team of teams) console.log(`${gh} ${getMembers(team, true).join(" ")}`);
+		console.log("\n...or, you could use the --all option to fetch all members from these teams.");
+	}
+}
+//#endregion
 //#region src/meeting-from-issue.ts
 let meetingCounter = 1;
 function meetingFromIssue(dayInfo, getter, combine, issue) {
@@ -790,6 +793,7 @@ function meetingFromIssue(dayInfo, getter, combine, issue) {
 	const id = URL.parse(bodyInfo.calendarUrl?.replace(/\/$/, "") ?? "")?.pathname.split("/").at(-1);
 	const calendarInfo = getter(id ?? "");
 	const match = calendarInfo.kind !== "nonexistent" ? bodyInfo.start && bodyInfo.end ? timeMatch(calendarInfo.calendarStart, calendarInfo.calendarEnd, bodyInfo.start, bodyInfo.end) : void 0 : void 0;
+	const { reportMetadata, report } = getMetadataAndReport(issue);
 	return {
 		...calendarInfo,
 		alternatives: [],
@@ -804,7 +808,9 @@ function meetingFromIssue(dayInfo, getter, combine, issue) {
 		start: bodyInfo.start,
 		tag: meetingCounter++,
 		title: issue.title,
-		personal: issue.labels.some((label) => label.name === "personal capacity")
+		personal: issue.labels.some((label) => label.name === "personal capacity"),
+		reportMetadata,
+		report
 	};
 }
 function parseBodyInfo(dayInfo, body) {
@@ -828,6 +834,19 @@ function parseBodyInfo(dayInfo, body) {
 		end,
 		extraPeople,
 		notes: bodyLines.join("\n")
+	};
+}
+function getMetadataAndReport(issue) {
+	const REPORT_METADATA_MARKER = "Report metadata:\n";
+	const REPORT_MARKER = "Report:\n";
+	let reportMetadata;
+	let report;
+	for (const comment of issue.comments ?? []) if (comment.body.startsWith(REPORT_METADATA_MARKER)) reportMetadata = comment.body.replace(REPORT_METADATA_MARKER, "").trim();
+	else if (comment.body.startsWith(REPORT_MARKER)) report = comment.body.replace(REPORT_MARKER, "").trim();
+	if (report) report = report.replaceAll(/^# /gm, "## ");
+	return {
+		reportMetadata,
+		report
 	};
 }
 function timeStringToPlainDateTime(startOfDay, time) {
@@ -978,7 +997,7 @@ function pathFromPackageRoot(partial) {
 	}
 	throw new Error("Couldn't find static assets.");
 }
-function getIssues(gh, repos, queryResult) {
+function getIssues(gh, repos, queryResult, includeComments) {
 	const issues = [];
 	if (queryResult) {
 		console.log("Using existing query result:", queryResult);
@@ -986,7 +1005,7 @@ function getIssues(gh, repos, queryResult) {
 	} else {
 		console.log("Querying repo(s) with gh...");
 		for (const { repo, label } of repos) try {
-			issues.push(...queryIssues(gh, repo, label));
+			issues.push(...queryIssues(gh, repo, label, includeComments));
 		} catch (err) {
 			errorOut(err);
 		}
@@ -1045,6 +1064,41 @@ function doScheduling({ alternatives, calDownloaded, combine, dayInfo, issues, t
 		title
 	});
 }
+function generateMeetingReport({ alternatives, combine, dayInfo, focus, issues, title, year }) {
+	const { validMeetings } = categoriseMeetings(issues.map(((issue) => meetingFromIssue(dayInfo, calendarMeeting, combine, issue))), alternatives);
+	let out = `---\ntitle: ${(title ? `${title} - ` : "") + `TPAC ${String(year)} Report`}\n---\n\n`;
+	let unassignedMeetingInfo = "";
+	let unassignedCount = 0;
+	let unfocusedMeetingInfo = "";
+	let unfocusedCount = 0;
+	for (const meeting of validMeetings) {
+		const ourPeopleAttending = meeting.names.filter((name) => alternatives.includes(name));
+		if (ourPeopleAttending.length === 0 && !meeting.report) {
+			unassignedCount += 1;
+			unassignedMeetingInfo += "| U-" + String(unassignedCount) + " | " + repoFromIssueUrl(meeting.issueUrl) + "|" + meeting.title + " | <" + meeting.issueUrl + "> |\n";
+			continue;
+		}
+		if (focus && repoFromIssueUrl(meeting.issueUrl) !== focus) {
+			unfocusedCount += 1;
+			unfocusedMeetingInfo += "| O-" + String(unfocusedCount) + " | " + repoFromIssueUrl(meeting.issueUrl) + "|" + meeting.title + " | <" + meeting.issueUrl + "> |\n";
+			continue;
+		}
+		const heading = meeting.calendarTitle + (meeting.title === meeting.calendarTitle ? "" : ` [${meeting.title}]`);
+		const ourPeopleList = ourPeopleAttending.map((name) => `* ${name}`);
+		const dayTime = pretty(meeting.calendarDay) + ", " + dtf(meeting.calendarStart) + " - " + dtf(meeting.calendarEnd);
+		out += `# ${heading}\n\n`;
+		out += "Metadata:\n\n";
+		out += `* [${dayTime} (W3C Calendar entry)](${meeting.calendarUrl})\n`;
+		out += `* [Scheduling issue #${meeting.issueUrl.split("/").at(-1)} in ${repoFromIssueUrl(meeting.issueUrl)}](${meeting.issueUrl})\n`;
+		out += (meeting.reportMetadata ?? "") + "\n\n";
+		out += "Attending from our group:\n\n";
+		out += (ourPeopleList.length ? ourPeopleList.join("\n") : "* (none of us)") + "\n\n";
+		out += (meeting.report ?? "(no report)") + "\n\n";
+	}
+	if (unassignedMeetingInfo.length > 0) unassignedMeetingInfo = "# Info on unassigned meetings\n\n".toUpperCase() + "This section can be deleted once you have satisfied yourself that all important unassigned meetings have been brought into this repo, if needed, and adequately reported on.\n\n| ID | Repo | Meeting title | Booking issue URL |\n|----|------|---------------|-------------------|\n" + unassignedMeetingInfo;
+	if (unfocusedMeetingInfo.length > 0) unfocusedMeetingInfo = "# Info on meetings from other repos\n\n".toUpperCase() + "This section can be deleted once you have satisfied yourself that all important meetings from other repos have been brought into this repo, and adequately reported on.\n\n| ID | Repo | Meeting title | Booking issue URL |\n|----|------|---------------|-------------------|\n" + unfocusedMeetingInfo;
+	return unassignedMeetingInfo + unfocusedMeetingInfo + out;
+}
 function main() {
 	return yargs(hideBin(process.argv)).parserConfiguration({ "flatten-duplicate-arrays": false }).option("gh", {
 		type: "string",
@@ -1065,6 +1119,11 @@ function main() {
 			alias: "s",
 			type: "string",
 			description: "Path to a local HTML file to create (or overwrite) with info on your planned meetings, and possible clashes.\n"
+		},
+		"output-report": {
+			alias: "R",
+			type: "string",
+			description: "Path to a local Markdown file to create (or overwrite) with your event report.\n"
 		},
 		year: {
 			alias: "y",
@@ -1117,8 +1176,15 @@ function main() {
 	}).coerce("alternatives", (alternatives) => Array.isArray(alternatives) ? alternatives : []).coerce("combine", (combine) => {
 		if (Array.isArray(combine) && combine.length === 2 && combine.every((value) => typeof value === "string")) return [combine];
 		return combine;
-	}).check((args) => {
-		for (const [one, other] of [["repo", "query-result"], ["output-plan", "output-schedule"]]) if (args[one] === void 0 && args[other] === void 0) throw new Error(`One of '--${one}' and '--${other}' must be supplied.`);
+	}).conflicts("repo", "query-result").check((args) => {
+		const outputs = [
+			"output-plan",
+			"output-schedule",
+			"output-report"
+		];
+		if (outputs.reduce((acc, cur) => {
+			return args[cur] !== void 0 ? acc + 1 : acc;
+		}, 0) < 1) throw new Error(`At least one of the output options (${outputs.join(", ")}) must be specified.`);
 		return true;
 	}).check((args) => {
 		if (!args.repo) return true;
@@ -1156,7 +1222,7 @@ function main() {
 		}, []) ?? [];
 		const tpac = TPACs[argv.year];
 		const calDownloaded = calendarInit(tpac.icsUrl, argv.calendar);
-		const issues = getIssues(argv.gh, repos, argv.queryResult);
+		const issues = getIssues(argv.gh, repos, argv.queryResult, !!argv.outputReport);
 		const combine = makeEquivalents(argv.combine);
 		if (argv.outputPlan) write(argv.outputPlan, "meeting list", generateMeetingList({
 			alternatives: argv.alternatives,
@@ -1174,6 +1240,15 @@ function main() {
 			dayInfo: tpac.days,
 			issues,
 			title: argv.title
+		}));
+		if (argv.outputReport) write(argv.outputReport, "report", generateMeetingReport({
+			alternatives: argv.alternatives,
+			combine,
+			dayInfo: tpac.days,
+			focus: repos[0]?.repo,
+			issues,
+			title: argv.title,
+			year: argv.year
 		}));
 		if (argv.saveResult) write(argv.saveResult, "JSON returned via gh", JSON.stringify(issues, null, 2));
 	}).command("members", "Try to find group members via their GitHub Team access to a given repo", (yargs) => yargs.options({

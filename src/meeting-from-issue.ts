@@ -44,6 +44,8 @@ export default function meetingFromIssue(
 			: undefined
 		: undefined
 
+	const { reportMetadata, report } = getMetadataAndReport(issue)
+
 	return {
 		...calendarInfo,
 		alternatives: [], // NOTE: Only known after computing clashes and free times
@@ -62,6 +64,8 @@ export default function meetingFromIssue(
 		tag: meetingCounter++,
 		title: issue.title,
 		personal: issue.labels.some(label => label.name === 'personal capacity'),
+		reportMetadata,
+		report,
 	}
 }
 
@@ -87,6 +91,30 @@ function parseBodyInfo(dayInfo: TpacDayInfo, body: string): Partial<ParsedGhBody
 	if (haveExtraLine) bodyLines.shift()  // Blank line after metadata
 
 	return { calendarUrl, day, start, end, extraPeople, notes: bodyLines.join('\n') }
+}
+
+// FIXME: test classification
+function getMetadataAndReport(issue: GhIssue): { reportMetadata?: string, report?: string } {
+	const REPORT_METADATA_MARKER = 'Report metadata:\n'
+	const REPORT_MARKER = 'Report:\n'
+	let reportMetadata
+	let report
+
+	// TODO: DRY?
+	for (const comment of issue.comments ?? []) {
+		if (comment.body.startsWith(REPORT_METADATA_MARKER)) {
+			reportMetadata = comment.body.replace(REPORT_METADATA_MARKER, '').trim()
+		} else if (comment.body.startsWith(REPORT_MARKER)) {
+			report = comment.body.replace(REPORT_MARKER, '').trim()
+		}
+	}
+
+	// FIXME: test heading munging
+	// FIXME: document this
+	// FIXME: make it work with any level of heading?
+	if (report) report = report.replaceAll(/^# /gm, '## ')
+
+	return { reportMetadata, report }
 }
 
 function timeStringToPlainDateTime(startOfDay: Temporal.PlainDateTime, time: string): Temporal.PlainDateTime {

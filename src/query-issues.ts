@@ -6,6 +6,7 @@ export interface GhIssue {
 	title: string
 	url: string
 	labels: GhLabel[]
+	comments?: GhComment[]
 }
 
 interface GhAssignee {
@@ -26,6 +27,10 @@ interface GhTeam {
 	slug: string
 }
 
+interface GhComment {
+	body: string
+}
+
 function doIt(gh: string, args: string[], label?: string, processor?: (stdout: string) => string) {
 	if (label) args.push('--label', label) // FIXME: do this in queryIssues instead
 	console.log(gh, args.join(' '))
@@ -41,8 +46,10 @@ function doIt(gh: string, args: string[], label?: string, processor?: (stdout: s
 	}
 }
 
-export function queryIssues(gh: string, repo: string, label?: string): GhIssue[] {
-	const args = [ '--repo', repo, 'issue', 'list', '--json', 'assignees,body,title,url,labels', '--limit', '999' ]
+export function queryIssues(gh: string, repo: string, label?: string, comments?: boolean): GhIssue[] {
+	let jsonFields = 'assignees,body,title,url,labels'
+	if (comments) jsonFields += ',comments'
+	const args = [ '--repo', repo, 'issue', 'list', '--json', jsonFields, '--limit', '999' ]
 	return doIt(gh, args, label, JSON.parse) as unknown as GhIssue[]
 }
 
